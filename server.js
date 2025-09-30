@@ -188,7 +188,7 @@ app.get('/api/notification-stats', async (req, res) => {
 // Grant Admin role (by email). If Auth user doesn't exist, create it and create/merge profile
 app.post('/api/grant-admin', async (req, res) => {
   try {
-    const { email, firstName = '', lastName = '' } = req.body || {}
+    const { email, firstName = '', lastName = '', tempPassword } = req.body || {}
 
     if (!email || typeof email !== 'string') {
       return res.status(400).json({ success: false, error: 'Valid email is required' })
@@ -200,11 +200,28 @@ app.post('/api/grant-admin', async (req, res) => {
       userRecord = await admin.auth().getUserByEmail(email)
     } catch (err) {
       if (err && err.code === 'auth/user-not-found') {
-        userRecord = await admin.auth().createUser({ email })
+        // Create with temporary password if provided (or generate one)
+        const generated = tempPassword || Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-4)
+        userRecord = await admin.auth().createUser({ email, password: generated })
+        // Store for response
+        userRecord._generatedTempPassword = generated
       } else {
         throw err
       }
     }
+
+    // If user already existed and tempPassword provided, update password
+    let effectiveTempPassword = userRecord._generatedTempPassword || null
+    if (!effectiveTempPassword && tempPassword) {
+      await admin.auth().updateUser(userRecord.uid, { password: tempPassword })
+      effectiveTempPassword = tempPassword
+    }
+
+    // Set custom claim requiring password change on first sign-in
+    await admin.auth().setCustomUserClaims(userRecord.uid, {
+      mustChangePassword: true,
+      // preserve existing claims if needed in a real implementation (fetch then merge)
+    })
 
     // Update Firestore profile: set admin role and names if provided
     const uid = userRecord.uid
@@ -223,18 +240,12 @@ app.post('/api/grant-admin', async (req, res) => {
       { merge: true }
     )
 
-    // Optionally generate a password reset link to let the user set a password
-    let passwordResetLink = null
-    try {
-      passwordResetLink = await admin.auth().generatePasswordResetLink(email)
-    } catch (_) {}
-
     res.json({
       success: true,
       uid,
       email,
-      message: 'Admin role granted',
-      passwordResetLink
+      message: 'Admin role granted with temporary password set',
+      tempPassword: effectiveTempPassword || undefined
     })
   } catch (error) {
     console.error('Error granting admin:', error)
