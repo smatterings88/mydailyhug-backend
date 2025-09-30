@@ -185,6 +185,63 @@ app.get('/api/notification-stats', async (req, res) => {
   }
 });
 
+// Grant Admin role (by email). If Auth user doesn't exist, create it and create/merge profile
+app.post('/api/grant-admin', async (req, res) => {
+  try {
+    const { email, firstName = '', lastName = '' } = req.body || {}
+
+    if (!email || typeof email !== 'string') {
+      return res.status(400).json({ success: false, error: 'Valid email is required' })
+    }
+
+    // Find or create Auth user
+    let userRecord
+    try {
+      userRecord = await admin.auth().getUserByEmail(email)
+    } catch (err) {
+      if (err && err.code === 'auth/user-not-found') {
+        userRecord = await admin.auth().createUser({ email })
+      } else {
+        throw err
+      }
+    }
+
+    // Update Firestore profile: set admin role and names if provided
+    const uid = userRecord.uid
+    const displayName = `${firstName || ''} ${lastName || ''}`.trim() || userRecord.displayName || ''
+    await db.collection('users').doc(uid).set(
+      {
+        uid,
+        email,
+        firstName: firstName || admin.firestore.FieldValue.delete(),
+        lastName: lastName || admin.firestore.FieldValue.delete(),
+        displayName: displayName || admin.firestore.FieldValue.delete(),
+        userType: 'admin',
+        updatedAt: admin.firestore.Timestamp.now(),
+        createdAt: admin.firestore.FieldValue.serverTimestamp()
+      },
+      { merge: true }
+    )
+
+    // Optionally generate a password reset link to let the user set a password
+    let passwordResetLink = null
+    try {
+      passwordResetLink = await admin.auth().generatePasswordResetLink(email)
+    } catch (_) {}
+
+    res.json({
+      success: true,
+      uid,
+      email,
+      message: 'Admin role granted',
+      passwordResetLink
+    })
+  } catch (error) {
+    console.error('Error granting admin:', error)
+    res.status(500).json({ success: false, error: 'Failed to grant admin role' })
+  }
+})
+
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
