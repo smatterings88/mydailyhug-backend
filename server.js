@@ -249,7 +249,11 @@ app.post('/api/grant-admin', async (req, res) => {
     })
   } catch (error) {
     console.error('Error granting admin:', error)
-    res.status(500).json({ success: false, error: 'Failed to grant admin role' })
+    res.status(500).json({
+      success: false,
+      error: error?.message || 'Failed to grant admin role',
+      code: error?.code || undefined
+    })
   }
 })
 
