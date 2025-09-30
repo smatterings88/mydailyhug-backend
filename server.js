@@ -8,6 +8,9 @@ const admin = require('firebase-admin');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Trust proxy headers (needed on Vercel and other proxies)
+app.set('trust proxy', 1);
+
 // Initialize Firebase Admin SDK
 const serviceAccount = {
   type: "service_account",
@@ -103,11 +106,10 @@ app.post('/api/send-notification', async (req, res) => {
 
     // Prepare notification payload
     const message = {
+      // Only title/body are allowed in top-level notification for FCM Admin
       notification: {
         title,
-        body,
-        icon: icon || '/MDH_favicon.png',
-        badge: badge || '/MDH_favicon.png'
+        body
       },
       data: {
         ...data,
@@ -115,6 +117,11 @@ app.post('/api/send-notification', async (req, res) => {
         source: 'backend-service'
       },
       webpush: {
+        // Web Push-specific notification fields
+        notification: {
+          icon: icon || '/MDH_favicon.png',
+          badge: badge || '/MDH_favicon.png'
+        },
         fcm_options: {
           link: process.env.FRONTEND_URL || 'http://localhost:8080'
         }
