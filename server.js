@@ -252,12 +252,21 @@ app.post('/api/grant-admin', async (req, res) => {
     if (lastName) userData.lastName = lastName
     if (displayName) userData.displayName = displayName
     
+    // Add temporary password if one was generated/set
+    if (effectiveTempPassword) {
+      userData.tempPassword = effectiveTempPassword
+      userData.passwordGeneratedAt = admin.firestore.Timestamp.now()
+    }
+    
     // Set createdAt only for new users
     if (userRecord._generatedTempPassword) {
       userData.createdAt = admin.firestore.FieldValue.serverTimestamp()
     }
     
-    console.log('Writing user data to Firestore:', userData)
+    console.log('Writing user data to Firestore:', { 
+      ...userData, 
+      tempPassword: userData.tempPassword ? '[REDACTED]' : undefined 
+    })
     await db.collection('users').doc(uid).set(userData, { merge: true })
     console.log('Successfully wrote user data to Firestore')
 
