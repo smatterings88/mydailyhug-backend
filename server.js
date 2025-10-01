@@ -188,24 +188,31 @@ app.get('/api/notification-stats', async (req, res) => {
 // Grant Admin role (by email). If Auth user doesn't exist, create it and create/merge profile
 app.post('/api/grant-admin', async (req, res) => {
   try {
+    console.log('Grant admin request received:', { body: req.body })
     const { email, firstName = '', lastName = '', tempPassword } = req.body || {}
 
     if (!email || typeof email !== 'string') {
+      console.log('Invalid email provided:', email)
       return res.status(400).json({ success: false, error: 'Valid email is required' })
     }
 
     // Find or create Auth user
     let userRecord
     try {
+      console.log('Looking up user by email:', email)
       userRecord = await admin.auth().getUserByEmail(email)
+      console.log('User found:', userRecord.uid)
     } catch (err) {
       if (err && err.code === 'auth/user-not-found') {
+        console.log('User not found, creating new user')
         // Create with temporary password if provided (or generate one)
         const generated = tempPassword || Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-4)
         userRecord = await admin.auth().createUser({ email, password: generated })
+        console.log('New user created:', userRecord.uid)
         // Store for response
         userRecord._generatedTempPassword = generated
       } else {
+        console.error('Error looking up user:', err)
         throw err
       }
     }
@@ -218,6 +225,7 @@ app.post('/api/grant-admin', async (req, res) => {
     }
 
     // Set custom claim requiring password change on first sign-in
+    console.log('Setting custom claims for user:', userRecord.uid)
     await admin.auth().setCustomUserClaims(userRecord.uid, {
       mustChangePassword: true,
       // preserve existing claims if needed in a real implementation (fetch then merge)
@@ -226,19 +234,28 @@ app.post('/api/grant-admin', async (req, res) => {
     // Update Firestore profile: set admin role and names if provided
     const uid = userRecord.uid
     const displayName = `${firstName || ''} ${lastName || ''}`.trim() || userRecord.displayName || ''
-    await db.collection('users').doc(uid).set(
-      {
-        uid,
-        email,
-        firstName: firstName || admin.firestore.FieldValue.delete(),
-        lastName: lastName || admin.firestore.FieldValue.delete(),
-        displayName: displayName || admin.firestore.FieldValue.delete(),
-        userType: 'admin',
-        updatedAt: admin.firestore.Timestamp.now(),
-        createdAt: admin.firestore.FieldValue.serverTimestamp()
-      },
-      { merge: true }
-    )
+    
+    // Prepare user data object
+    const userData = {
+      uid,
+      email,
+      userType: 'admin',
+      updatedAt: admin.firestore.Timestamp.now()
+    }
+    
+    // Only add fields if they have values
+    if (firstName) userData.firstName = firstName
+    if (lastName) userData.lastName = lastName
+    if (displayName) userData.displayName = displayName
+    
+    // Set createdAt only for new users
+    if (userRecord._generatedTempPassword) {
+      userData.createdAt = admin.firestore.FieldValue.serverTimestamp()
+    }
+    
+    console.log('Writing user data to Firestore:', userData)
+    await db.collection('users').doc(uid).set(userData, { merge: true })
+    console.log('Successfully wrote user data to Firestore')
 
     res.json({
       success: true,
