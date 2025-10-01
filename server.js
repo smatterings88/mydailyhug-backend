@@ -209,6 +209,7 @@ app.post('/api/grant-admin', async (req, res) => {
         const generated = tempPassword || Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-4)
         userRecord = await admin.auth().createUser({ email, password: generated })
         console.log('New user created:', userRecord.uid)
+        console.log('Generated temp password:', generated)
         // Store for response
         userRecord._generatedTempPassword = generated
       } else {
@@ -217,12 +218,15 @@ app.post('/api/grant-admin', async (req, res) => {
       }
     }
 
-    // If user already existed and tempPassword provided, update password
+    // Handle password for existing users or use generated password for new users
     let effectiveTempPassword = userRecord._generatedTempPassword || null
     if (!effectiveTempPassword && tempPassword) {
+      // User already existed and tempPassword was provided
       await admin.auth().updateUser(userRecord.uid, { password: tempPassword })
       effectiveTempPassword = tempPassword
     }
+    
+    console.log('Effective temp password:', effectiveTempPassword ? 'Generated/Set' : 'None')
 
     // Set custom claim requiring password change on first sign-in
     console.log('Setting custom claims for user:', userRecord.uid)
@@ -257,13 +261,16 @@ app.post('/api/grant-admin', async (req, res) => {
     await db.collection('users').doc(uid).set(userData, { merge: true })
     console.log('Successfully wrote user data to Firestore')
 
-    res.json({
+    const response = {
       success: true,
       uid,
       email,
       message: 'Admin role granted with temporary password set',
       tempPassword: effectiveTempPassword || undefined
-    })
+    }
+    
+    console.log('Sending response:', { ...response, tempPassword: effectiveTempPassword ? '[REDACTED]' : 'undefined' })
+    res.json(response)
   } catch (error) {
     console.error('Error granting admin:', error)
     res.status(500).json({
