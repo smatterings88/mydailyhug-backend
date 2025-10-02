@@ -53,6 +53,40 @@ const limiter = rateLimit({
 });
 app.use('/api/', limiter);
 
+// Authentication middleware for admin endpoints
+const authenticateAdmin = async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({
+        success: false,
+        error: 'Authorization header required'
+      });
+    }
+
+    const idToken = authHeader.split('Bearer ')[1];
+    const decodedToken = await admin.auth().verifyIdToken(idToken);
+    
+    // Check if user has admin role in Firestore
+    const userDoc = await db.collection('users').doc(decodedToken.uid).get();
+    if (!userDoc.exists || userDoc.data().userType !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        error: 'Admin access required'
+      });
+    }
+
+    req.user = decodedToken;
+    next();
+  } catch (error) {
+    console.error('Authentication error:', error);
+    res.status(401).json({
+      success: false,
+      error: 'Invalid or expired token'
+    });
+  }
+};
+
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });
@@ -320,6 +354,129 @@ app.post('/api/remove-password-change-requirement', async (req, res) => {
     });
   }
 });
+
+// Create new user endpoint (admin only)
+app.post('/api/create-user', authenticateAdmin, async (req, res) => {
+  try {
+    console.log('Create user request received:', { body: req.body })
+    const { email, firstName = '', lastName = '', tempPassword } = req.body || {}
+
+    // Validate email format
+    if (!email || typeof email !== 'string') {
+      console.log('Invalid email provided:', email)
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Valid email is required' 
+      })
+    }
+
+    // Basic email format validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(email)) {
+      console.log('Invalid email format:', email)
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Invalid email format' 
+      })
+    }
+
+    // Find or create Auth user
+    let userRecord
+    try {
+      console.log('Looking up user by email:', email)
+      userRecord = await admin.auth().getUserByEmail(email)
+      console.log('User already exists:', userRecord.uid)
+      return res.status(409).json({
+        success: false,
+        error: 'User already exists with this email',
+        uid: userRecord.uid
+      })
+    } catch (err) {
+      if (err && err.code === 'auth/user-not-found') {
+        console.log('User not found, creating new user')
+        // Create with temporary password if provided (or generate one)
+        const generated = tempPassword || Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-4)
+        userRecord = await admin.auth().createUser({ email, password: generated })
+        console.log('New user created:', userRecord.uid)
+        console.log('Generated temp password:', generated)
+        // Store for response
+        userRecord._generatedTempPassword = generated
+      } else {
+        console.error('Error looking up user:', err)
+        throw err
+      }
+    }
+
+    // Handle password for existing users or use generated password for new users
+    let effectiveTempPassword = userRecord._generatedTempPassword || null
+    if (!effectiveTempPassword && tempPassword) {
+      // User already existed and tempPassword was provided
+      await admin.auth().updateUser(userRecord.uid, { password: tempPassword })
+      effectiveTempPassword = tempPassword
+    }
+    
+    console.log('Effective temp password:', effectiveTempPassword ? 'Generated/Set' : 'None')
+
+    // Set custom claim requiring password change on first sign-in
+    console.log('Setting custom claims for user:', userRecord.uid)
+    await admin.auth().setCustomUserClaims(userRecord.uid, {
+      mustChangePassword: true,
+      // preserve existing claims if needed in a real implementation (fetch then merge)
+    })
+
+    // Update Firestore profile: set user role and names if provided
+    const uid = userRecord.uid
+    const displayName = `${firstName || ''} ${lastName || ''}`.trim() || userRecord.displayName || ''
+    
+    // Prepare user data object
+    const userData = {
+      uid,
+      email,
+      userType: 'user', // Regular user role
+      updatedAt: admin.firestore.Timestamp.now()
+    }
+    
+    // Only add fields if they have values
+    if (firstName) userData.firstName = firstName
+    if (lastName) userData.lastName = lastName
+    if (displayName) userData.displayName = displayName
+    
+    // Add temporary password if one was generated/set
+    if (effectiveTempPassword) {
+      userData.tempPassword = effectiveTempPassword
+      userData.passwordGeneratedAt = admin.firestore.Timestamp.now()
+    }
+    
+    // Set createdAt only for new users
+    if (userRecord._generatedTempPassword) {
+      userData.createdAt = admin.firestore.FieldValue.serverTimestamp()
+    }
+    
+    console.log('Writing user data to Firestore:', { 
+      ...userData, 
+      tempPassword: userData.tempPassword ? '[REDACTED]' : undefined 
+    })
+    await db.collection('users').doc(uid).set(userData, { merge: true })
+    console.log('Successfully wrote user data to Firestore')
+
+    const response = {
+      success: true,
+      email,
+      uid,
+      tempPassword: effectiveTempPassword || undefined
+    }
+    
+    console.log('Sending response:', { ...response, tempPassword: effectiveTempPassword ? '[REDACTED]' : 'undefined' })
+    res.json(response)
+  } catch (error) {
+    console.error('Error creating user:', error)
+    res.status(500).json({
+      success: false,
+      error: error?.message || 'Failed to create user',
+      code: error?.code || undefined
+    })
+  }
+})
 
 // Get all users endpoint
 app.get('/api/users', async (req, res) => {
