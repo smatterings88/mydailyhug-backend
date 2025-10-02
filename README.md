@@ -75,6 +75,63 @@ POST /api/send-notification
 GET /api/notification-stats
 ```
 
+### GHL: Create Regular User (API Key Auth)
+
+Use this endpoint to allow GoHighLevel (GHL) to create a regular user in Firebase Auth and Firestore without a Firebase ID token. The endpoint is protected with a static API key passed in the `X-API-Key` header.
+
+```
+POST /api/ghl/create-user
+```
+
+Headers:
+
+```
+Content-Type: application/json
+X-API-Key: <your-long-random-api-key>
+```
+
+Body:
+
+```json
+{
+  "email": "user@example.com",
+  "firstName": "Jane",     // optional
+  "lastName": "Smith",     // optional
+  "tempPassword": "abc123" // optional (auto-generated if omitted)
+}
+```
+
+Success response:
+
+```json
+{
+  "success": true,
+  "email": "user@example.com",
+  "uid": "firebase-uid",
+  "tempPassword": "generated-or-provided-temp-password"
+}
+```
+
+Errors:
+
+- `401 X-API-Key header required`
+- `403 Invalid API key`
+- `400 Valid email is required`
+- `400 Invalid email format`
+- `409 User already exists with this email`
+- `500 Failed to create user`
+
+Environment variable:
+
+```
+GHL_API_KEY=your_long_random_api_key_here
+```
+
+Tips:
+- Rotate `GHL_API_KEY` periodically.
+- Apply stricter rate limits at your hosting provider/CDN for `/api/ghl/*`.
+- Optionally add an IP allowlist if GHL provides static egress IPs.
+
 ## Deployment
 
 ### Vercel (Recommended)
