@@ -290,6 +290,62 @@ app.post('/api/grant-admin', async (req, res) => {
   }
 })
 
+// Remove mustChangePassword custom claim endpoint
+app.post('/api/remove-password-change-requirement', async (req, res) => {
+  try {
+    const { uid } = req.body;
+
+    if (!uid) {
+      return res.status(400).json({
+        success: false,
+        error: 'User ID is required'
+      });
+    }
+
+    // Remove the mustChangePassword custom claim
+    await admin.auth().setCustomUserClaims(uid, {
+      mustChangePassword: false
+    });
+
+    res.json({
+      success: true,
+      message: 'Password change requirement removed'
+    });
+
+  } catch (error) {
+    console.error('Error removing password change requirement:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Internal server error'
+    });
+  }
+});
+
+// Get all users endpoint
+app.get('/api/users', async (req, res) => {
+  try {
+    const snapshot = await db.collection('users').get();
+    const users = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+      createdAt: doc.data().createdAt?.toDate?.() || null,
+      updatedAt: doc.data().updatedAt?.toDate?.() || null
+    }));
+
+    res.json({
+      success: true,
+      users,
+      total: users.length
+    });
+  } catch (error) {
+    console.error('Error getting users:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error'
+    });
+  }
+});
+
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
