@@ -87,6 +87,31 @@ const authenticateAdmin = async (req, res, next) => {
   }
 };
 
+// Authentication middleware for GHL integrations using static API key
+const authenticateApiKey = (req, res, next) => {
+  try {
+    const providedKey = req.header('X-API-Key') || req.header('x-api-key')
+    if (!providedKey) {
+      return res.status(401).json({ success: false, error: 'X-API-Key header required' })
+    }
+
+    const expectedKey = process.env.GHL_API_KEY
+    if (!expectedKey) {
+      console.error('GHL_API_KEY not configured')
+      return res.status(500).json({ success: false, error: 'Server configuration error' })
+    }
+
+    if (providedKey !== expectedKey) {
+      return res.status(403).json({ success: false, error: 'Invalid API key' })
+    }
+
+    next()
+  } catch (error) {
+    console.error('API key authentication error:', error)
+    res.status(401).json({ success: false, error: 'Unauthorized' })
+  }
+}
+
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });
@@ -512,6 +537,73 @@ app.get('/api/users', async (req, res) => {
     });
   }
 });
+
+// GHL: Create new user via API key (no Firebase token required)
+app.post('/api/ghl/create-user', authenticateApiKey, async (req, res) => {
+  try {
+    console.log('GHL create user request received:', { body: req.body })
+    const { email, firstName = '', lastName = '', tempPassword } = req.body || {}
+
+    // Validate email format
+    if (!email || typeof email !== 'string') {
+      console.log('Invalid email provided:', email)
+      return res.status(400).json({ success: false, error: 'Valid email is required' })
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(email)) {
+      console.log('Invalid email format:', email)
+      return res.status(400).json({ success: false, error: 'Invalid email format' })
+    }
+
+    // Check duplicates
+    let userRecord
+    try {
+      console.log('Looking up user by email:', email)
+      userRecord = await admin.auth().getUserByEmail(email)
+      console.log('User already exists:', userRecord.uid)
+      return res.status(409).json({ success: false, error: 'User already exists with this email', uid: userRecord.uid })
+    } catch (err) {
+      if (!(err && err.code === 'auth/user-not-found')) {
+        console.error('Error looking up user:', err)
+        throw err
+      }
+    }
+
+    // Create new user
+    const generated = tempPassword || Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-4)
+    userRecord = await admin.auth().createUser({ email, password: generated })
+    console.log('New user created (GHL):', userRecord.uid)
+
+    // Enforce password change on first sign-in
+    await admin.auth().setCustomUserClaims(userRecord.uid, { mustChangePassword: true })
+
+    // Build Firestore data
+    const uid = userRecord.uid
+    const displayName = `${firstName || ''} ${lastName || ''}`.trim() || userRecord.displayName || ''
+    const userData = {
+      uid,
+      email,
+      userType: 'user',
+      updatedAt: admin.firestore.Timestamp.now(),
+      tempPassword: generated,
+      passwordGeneratedAt: admin.firestore.Timestamp.now()
+    }
+    if (firstName) userData.firstName = firstName
+    if (lastName) userData.lastName = lastName
+    if (displayName) userData.displayName = displayName
+    userData.createdAt = admin.firestore.FieldValue.serverTimestamp()
+
+    console.log('Writing user (GHL) to Firestore:', { ...userData, tempPassword: '[REDACTED]' })
+    await db.collection('users').doc(uid).set(userData, { merge: true })
+
+    const response = { success: true, email, uid, tempPassword: generated }
+    console.log('GHL create-user response:', { ...response, tempPassword: '[REDACTED]' })
+    res.json(response)
+  } catch (error) {
+    console.error('Error creating user (GHL):', error)
+    res.status(500).json({ success: false, error: error?.message || 'Failed to create user', code: error?.code || undefined })
+  }
+})
 
 // Error handling middleware
 app.use((err, req, res, next) => {
