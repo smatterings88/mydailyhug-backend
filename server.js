@@ -219,8 +219,8 @@ app.get('/api/notification-stats', async (req, res) => {
   }
 });
 
-// Grant Admin role (by email). If Auth user doesn't exist, create it and create/merge profile
-app.post('/api/grant-admin', async (req, res) => {
+// Grant Admin role (by email). If Auth user doesn't exist, create it and create/merge profile (admin only)
+app.post('/api/grant-admin', authenticateAdmin, async (req, res) => {
   try {
     console.log('Grant admin request received:', { body: req.body })
     const { email, firstName = '', lastName = '', tempPassword } = req.body || {}
@@ -228,6 +228,16 @@ app.post('/api/grant-admin', async (req, res) => {
     if (!email || typeof email !== 'string') {
       console.log('Invalid email provided:', email)
       return res.status(400).json({ success: false, error: 'Valid email is required' })
+    }
+
+    // Basic email format validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(email)) {
+      console.log('Invalid email format:', email)
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Invalid email format' 
+      })
     }
 
     // Find or create Auth user
