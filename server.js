@@ -720,7 +720,7 @@ app.post('/api/make-inactive', authenticateAdmin, async (req, res) => {
     }
 
     await db.collection('users').doc(targetUid).set({
-      accountStatus: 'inactive',
+      accountStatus: 'Inactive',
       updatedAt: admin.firestore.Timestamp.now()
     }, { merge: true })
 
@@ -754,7 +754,7 @@ app.post('/api/ghl/make-inactive', authenticateApiKey, async (req, res) => {
     }
 
     await db.collection('users').doc(targetUid).set({
-      accountStatus: 'inactive',
+      accountStatus: 'Inactive',
       updatedAt: admin.firestore.Timestamp.now()
     }, { merge: true })
 
