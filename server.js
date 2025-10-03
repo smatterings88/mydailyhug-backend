@@ -765,6 +765,74 @@ app.post('/api/ghl/make-inactive', authenticateApiKey, async (req, res) => {
   }
 })
 
+// Make user active (admin only)
+app.post('/api/make-active', authenticateAdmin, async (req, res) => {
+  try {
+    const { uid, email } = req.body || {}
+
+    if (!uid && !email) {
+      return res.status(400).json({ success: false, error: 'uid or email is required' })
+    }
+
+    let targetUid = uid
+    if (!targetUid && email) {
+      try {
+        const userRecord = await admin.auth().getUserByEmail(email)
+        targetUid = userRecord.uid
+      } catch (err) {
+        if (err && err.code === 'auth/user-not-found') {
+          return res.status(404).json({ success: false, error: 'User not found for provided email' })
+        }
+        throw err
+      }
+    }
+
+    await db.collection('users').doc(targetUid).set({
+      accountStatus: 'Active',
+      updatedAt: admin.firestore.Timestamp.now()
+    }, { merge: true })
+
+    res.json({ success: true, uid: targetUid, accountStatus: 'Active' })
+  } catch (error) {
+    console.error('Error making user active (admin):', error)
+    res.status(500).json({ success: false, error: error?.message || 'Internal server error' })
+  }
+})
+
+// Make user active (GHL via API key)
+app.post('/api/ghl/make-active', authenticateApiKey, async (req, res) => {
+  try {
+    const { uid, email } = req.body || {}
+
+    if (!uid && !email) {
+      return res.status(400).json({ success: false, error: 'uid or email is required' })
+    }
+
+    let targetUid = uid
+    if (!targetUid && email) {
+      try {
+        const userRecord = await admin.auth().getUserByEmail(email)
+        targetUid = userRecord.uid
+      } catch (err) {
+        if (err && err.code === 'auth/user-not-found') {
+          return res.status(404).json({ success: false, error: 'User not found for provided email' })
+        }
+        throw err
+      }
+    }
+
+    await db.collection('users').doc(targetUid).set({
+      accountStatus: 'Active',
+      updatedAt: admin.firestore.Timestamp.now()
+    }, { merge: true })
+
+    res.json({ success: true, uid: targetUid, accountStatus: 'Active' })
+  } catch (error) {
+    console.error('Error making user active (GHL):', error)
+    res.status(500).json({ success: false, error: error?.message || 'Internal server error' })
+  }
+})
+
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
