@@ -132,6 +132,106 @@ Tips:
 - Apply stricter rate limits at your hosting provider/CDN for `/api/ghl/*`.
 - Optionally add an IP allowlist if GHL provides static egress IPs.
 
+### GHL: Create Trial User (API Key Auth)
+
+Same as GHL Create Regular User, but stores `accountType: "Trial"`.
+
+```
+POST /api/ghl/create-trial-user
+```
+
+Headers:
+
+```
+Content-Type: application/json
+X-API-Key: <your-long-random-api-key>
+```
+
+Body:
+
+```json
+{
+  "email": "user@example.com",
+  "firstName": "Jane",     // optional
+  "lastName": "Smith",     // optional
+  "tempPassword": "abc123" // optional (auto-generated if omitted)
+}
+```
+
+Success response:
+
+```json
+{
+  "success": true,
+  "email": "user@example.com",
+  "uid": "firebase-uid",
+  "tempPassword": "generated-or-provided-temp-password"
+}
+```
+
+### Admin: Create Admin User (Bearer Admin Token)
+
+```
+POST /api/grant-admin
+```
+
+Body (JSON):
+
+```json
+{
+  "email": "admin@example.com",
+  "firstName": "John",      // optional
+  "lastName": "Doe",        // optional
+  "tempPassword": "custom"  // optional
+}
+```
+
+### Admin: Create Regular User (Bearer Admin Token)
+
+```
+POST /api/create-user
+```
+
+Body (JSON):
+
+```json
+{
+  "email": "user@example.com",
+  "firstName": "Jane",      // optional
+  "lastName": "Smith",      // optional
+  "tempPassword": "custom"  // optional
+}
+```
+
+## User Document Schema (Firestore `users/{uid}`)
+
+The backend writes these fields when creating users:
+
+```json
+{
+  "uid": "firebase-uid",
+  "email": "user@example.com",
+  "userType": "user | admin",
+  "accountType": "Premium | Trial | Admin-Created",
+  "creationEndpoint": "ghl_create_user | ghl_create_trial_user | grant_admin | create_user",
+  "createdBy": "GHL | <admin full name>",
+  "accountStatus": "Active",
+  "firstName": "Jane",                // when provided
+  "lastName": "Smith",                // when provided
+  "displayName": "Jane Smith",        // when derivable
+  "tempPassword": "<redacted in logs>",
+  "passwordGeneratedAt": "Timestamp",
+  "createdAt": "ServerTimestamp",
+  "updatedAt": "Timestamp"
+}
+```
+
+Rules by endpoint:
+- `POST /api/ghl/create-user`: `accountType = "Premium"`, `creationEndpoint = "ghl_create_user"`, `createdBy = "GHL"`
+- `POST /api/ghl/create-trial-user`: `accountType = "Trial"`, `creationEndpoint = "ghl_create_trial_user"`, `createdBy = "GHL"`
+- `POST /api/grant-admin`: `accountType = "Admin-Created"`, `creationEndpoint = "grant_admin"`, `createdBy = <admin full name>`
+- `POST /api/create-user`: `accountType = "Admin-Created"`, `creationEndpoint = "create_user"`, `createdBy = <admin full name>`
+
 ## Deployment
 
 ### Vercel (Recommended)
