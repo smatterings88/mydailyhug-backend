@@ -158,6 +158,52 @@ Body:
 }
 ```
 
+### GHL: Make User Inactive (API Key Auth)
+
+```
+POST /api/ghl/make-inactive
+```
+
+Headers:
+
+```
+Content-Type: application/json
+X-API-Key: <your-long-random-api-key>
+```
+
+Body:
+
+```json
+{
+  "uid": "firebase-uid" // or provide "email": "user@example.com"
+}
+```
+
+Effect: Sets `users/{uid}.accountStatus = "Inactive"` and updates `updatedAt`.
+
+### GHL: Make User Active (API Key Auth)
+
+```
+POST /api/ghl/make-active
+```
+
+Headers:
+
+```
+Content-Type: application/json
+X-API-Key: <your-long-random-api-key>
+```
+
+Body:
+
+```json
+{
+  "uid": "firebase-uid" // or provide "email": "user@example.com"
+}
+```
+
+Effect: Sets `users/{uid}.accountStatus = "Active"` and updates `updatedAt`.
+
 Success response:
 
 ```json
@@ -202,6 +248,38 @@ Body (JSON):
   "tempPassword": "custom"  // optional
 }
 ```
+
+### Admin: Make User Inactive (Bearer Admin Token)
+
+```
+POST /api/make-inactive
+```
+
+Body (JSON):
+
+```json
+{
+  "uid": "firebase-uid" // or provide "email": "user@example.com"
+}
+```
+
+Effect: Sets `users/{uid}.accountStatus = "Inactive"` and updates `updatedAt`.
+
+### Admin: Make User Active (Bearer Admin Token)
+
+```
+POST /api/make-active
+```
+
+Body (JSON):
+
+```json
+{
+  "uid": "firebase-uid" // or provide "email": "user@example.com"
+}
+```
+
+Effect: Sets `users/{uid}.accountStatus = "Active"` and updates `updatedAt`.
 
 ## User Document Schema (Firestore `users/{uid}`)
 
