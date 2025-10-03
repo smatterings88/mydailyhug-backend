@@ -608,6 +608,74 @@ app.post('/api/ghl/create-user', authenticateApiKey, async (req, res) => {
   }
 })
 
+// GHL: Create trial user via API key (accountType: "Trial")
+app.post('/api/ghl/create-trial-user', authenticateApiKey, async (req, res) => {
+  try {
+    console.log('GHL create trial user request received:', { body: req.body })
+    const { email, firstName = '', lastName = '', tempPassword } = req.body || {}
+
+    // Validate email format
+    if (!email || typeof email !== 'string') {
+      console.log('Invalid email provided:', email)
+      return res.status(400).json({ success: false, error: 'Valid email is required' })
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(email)) {
+      console.log('Invalid email format:', email)
+      return res.status(400).json({ success: false, error: 'Invalid email format' })
+    }
+
+    // Check duplicates
+    let userRecord
+    try {
+      console.log('Looking up user by email:', email)
+      userRecord = await admin.auth().getUserByEmail(email)
+      console.log('User already exists:', userRecord.uid)
+      return res.status(409).json({ success: false, error: 'User already exists with this email', uid: userRecord.uid })
+    } catch (err) {
+      if (!(err && err.code === 'auth/user-not-found')) {
+        console.error('Error looking up user:', err)
+        throw err
+      }
+    }
+
+    // Create new user
+    const generated = tempPassword || Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-4)
+    userRecord = await admin.auth().createUser({ email, password: generated })
+    console.log('New trial user created (GHL):', userRecord.uid)
+
+    // Enforce password change on first sign-in
+    await admin.auth().setCustomUserClaims(userRecord.uid, { mustChangePassword: true })
+
+    // Build Firestore data
+    const uid = userRecord.uid
+    const displayName = `${firstName || ''} ${lastName || ''}`.trim() || userRecord.displayName || ''
+    const userData = {
+      uid,
+      email,
+      userType: 'user',
+      accountType: 'Trial',
+      updatedAt: admin.firestore.Timestamp.now(),
+      tempPassword: generated,
+      passwordGeneratedAt: admin.firestore.Timestamp.now()
+    }
+    if (firstName) userData.firstName = firstName
+    if (lastName) userData.lastName = lastName
+    if (displayName) userData.displayName = displayName
+    userData.createdAt = admin.firestore.FieldValue.serverTimestamp()
+
+    console.log('Writing trial user (GHL) to Firestore:', { ...userData, tempPassword: '[REDACTED]' })
+    await db.collection('users').doc(uid).set(userData, { merge: true })
+
+    const response = { success: true, email, uid, tempPassword: generated }
+    console.log('GHL create-trial-user response:', { ...response, tempPassword: '[REDACTED]' })
+    res.json(response)
+  } catch (error) {
+    console.error('Error creating trial user (GHL):', error)
+    res.status(500).json({ success: false, error: error?.message || 'Failed to create trial user', code: error?.code || undefined })
+  }
+})
+
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
