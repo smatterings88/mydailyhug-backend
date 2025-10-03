@@ -77,6 +77,15 @@ const authenticateAdmin = async (req, res, next) => {
     }
 
     req.user = decodedToken;
+    // Attach admin profile/name for downstream handlers
+    const profile = userDoc.data() || {}
+    const profileName = (profile.displayName && String(profile.displayName).trim())
+      || `${profile.firstName || ''} ${profile.lastName || ''}`.trim()
+      || decodedToken.name
+      || decodedToken.email
+      || 'Admin'
+    req.adminProfile = profile
+    req.adminDisplayName = profileName
     next();
   } catch (error) {
     console.error('Authentication error:', error);
@@ -314,6 +323,9 @@ app.post('/api/grant-admin', authenticateAdmin, async (req, res) => {
       email,
       userType: 'admin',
       accountType: 'Admin-Created',
+      creationEndpoint: 'grant_admin',
+      createdBy: req.adminDisplayName || 'Admin',
+      accountStatus: 'Active',
       updatedAt: admin.firestore.Timestamp.now()
     }
     
@@ -470,6 +482,9 @@ app.post('/api/create-user', authenticateAdmin, async (req, res) => {
       email,
       userType: 'user', // Regular user role
       accountType: 'Admin-Created',
+      creationEndpoint: 'create_user',
+      createdBy: req.adminDisplayName || 'Admin',
+      accountStatus: 'Active',
       updatedAt: admin.firestore.Timestamp.now()
     }
     
@@ -587,6 +602,9 @@ app.post('/api/ghl/create-user', authenticateApiKey, async (req, res) => {
       email,
       userType: 'user',
       accountType: 'Premium',
+      creationEndpoint: 'ghl_create_user',
+      createdBy: 'GHL',
+      accountStatus: 'Active',
       updatedAt: admin.firestore.Timestamp.now(),
       tempPassword: generated,
       passwordGeneratedAt: admin.firestore.Timestamp.now()
@@ -655,6 +673,9 @@ app.post('/api/ghl/create-trial-user', authenticateApiKey, async (req, res) => {
       email,
       userType: 'user',
       accountType: 'Trial',
+      creationEndpoint: 'ghl_create_trial_user',
+      createdBy: 'GHL',
+      accountStatus: 'Active',
       updatedAt: admin.firestore.Timestamp.now(),
       tempPassword: generated,
       passwordGeneratedAt: admin.firestore.Timestamp.now()
