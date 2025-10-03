@@ -697,6 +697,74 @@ app.post('/api/ghl/create-trial-user', authenticateApiKey, async (req, res) => {
   }
 })
 
+// Make user inactive (admin only)
+app.post('/api/make-inactive', authenticateAdmin, async (req, res) => {
+  try {
+    const { uid, email } = req.body || {}
+
+    if (!uid && !email) {
+      return res.status(400).json({ success: false, error: 'uid or email is required' })
+    }
+
+    let targetUid = uid
+    if (!targetUid && email) {
+      try {
+        const userRecord = await admin.auth().getUserByEmail(email)
+        targetUid = userRecord.uid
+      } catch (err) {
+        if (err && err.code === 'auth/user-not-found') {
+          return res.status(404).json({ success: false, error: 'User not found for provided email' })
+        }
+        throw err
+      }
+    }
+
+    await db.collection('users').doc(targetUid).set({
+      accountStatus: 'inactive',
+      updatedAt: admin.firestore.Timestamp.now()
+    }, { merge: true })
+
+    res.json({ success: true, uid: targetUid, accountStatus: 'inactive' })
+  } catch (error) {
+    console.error('Error making user inactive (admin):', error)
+    res.status(500).json({ success: false, error: error?.message || 'Internal server error' })
+  }
+})
+
+// Make user inactive (GHL via API key)
+app.post('/api/ghl/make-inactive', authenticateApiKey, async (req, res) => {
+  try {
+    const { uid, email } = req.body || {}
+
+    if (!uid && !email) {
+      return res.status(400).json({ success: false, error: 'uid or email is required' })
+    }
+
+    let targetUid = uid
+    if (!targetUid && email) {
+      try {
+        const userRecord = await admin.auth().getUserByEmail(email)
+        targetUid = userRecord.uid
+      } catch (err) {
+        if (err && err.code === 'auth/user-not-found') {
+          return res.status(404).json({ success: false, error: 'User not found for provided email' })
+        }
+        throw err
+      }
+    }
+
+    await db.collection('users').doc(targetUid).set({
+      accountStatus: 'inactive',
+      updatedAt: admin.firestore.Timestamp.now()
+    }, { merge: true })
+
+    res.json({ success: true, uid: targetUid, accountStatus: 'inactive' })
+  } catch (error) {
+    console.error('Error making user inactive (GHL):', error)
+    res.status(500).json({ success: false, error: error?.message || 'Internal server error' })
+  }
+})
+
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
