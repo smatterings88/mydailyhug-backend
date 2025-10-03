@@ -313,6 +313,7 @@ app.post('/api/grant-admin', authenticateAdmin, async (req, res) => {
       uid,
       email,
       userType: 'admin',
+      accountType: 'Admin-Created',
       updatedAt: admin.firestore.Timestamp.now()
     }
     
@@ -468,6 +469,7 @@ app.post('/api/create-user', authenticateAdmin, async (req, res) => {
       uid,
       email,
       userType: 'user', // Regular user role
+      accountType: 'Admin-Created',
       updatedAt: admin.firestore.Timestamp.now()
     }
     
@@ -584,6 +586,7 @@ app.post('/api/ghl/create-user', authenticateApiKey, async (req, res) => {
       uid,
       email,
       userType: 'user',
+      accountType: 'Premium',
       updatedAt: admin.firestore.Timestamp.now(),
       tempPassword: generated,
       passwordGeneratedAt: admin.firestore.Timestamp.now()
