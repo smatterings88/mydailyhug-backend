@@ -458,6 +458,76 @@ Response
 
 ---
 
+## Make User Double Hugger
+
+- Method/Path: `POST /api/make-double-hugger`
+- Auth: None
+- Description: Marks a user as a double hugger by setting `is_triple_hugger: "No"` in their Firestore profile.
+
+Headers
+- `Content-Type: application/json`
+
+Request body
+```json
+{ "email": "user@example.com" }
+```
+
+Example
+```bash
+curl -X POST <your-backend-url>/api/make-double-hugger \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@example.com"}'
+```
+
+Response
+```json
+{
+  "success": true,
+  "uid": "<firebase-uid>",
+  "email": "user@example.com",
+  "is_triple_hugger": "No",
+  "message": "User marked as double hugger"
+}
+```
+
+---
+
+## GHL: Make User Double Hugger
+
+- Method/Path: `POST /api/ghl/make-double-hugger`
+- Auth: `X-API-Key`
+- Description: Marks a user as a double hugger by setting `is_triple_hugger: "No"` in their Firestore profile (GHL version with API key auth).
+
+Headers
+- `X-API-Key: <GHL_API_KEY>`
+- `Content-Type: application/json`
+
+Request body
+```json
+{ "email": "user@example.com" }
+```
+
+Example
+```bash
+curl -X POST <your-backend-url>/api/ghl/make-double-hugger \
+  -H "X-API-Key: <GHL_API_KEY>" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@example.com"}'
+```
+
+Response
+```json
+{
+  "success": true,
+  "uid": "<firebase-uid>",
+  "email": "user@example.com",
+  "is_triple_hugger": "No",
+  "message": "User marked as double hugger (GHL)"
+}
+```
+
+---
+
 ## Error Responses (General)
 
 - 400: Invalid or missing parameters (e.g., missing `email` or `uid`).

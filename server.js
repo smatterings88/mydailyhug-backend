@@ -927,6 +927,100 @@ app.post('/api/ghl/make-triple-hugger', authenticateApiKey, async (req, res) => 
   }
 })
 
+// Make user a double hugger
+app.post('/api/make-double-hugger', async (req, res) => {
+  try {
+    const { email } = req.body || {}
+
+    if (!email || typeof email !== 'string') {
+      return res.status(400).json({ success: false, error: 'Valid email is required' })
+    }
+
+    // Basic email format validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ success: false, error: 'Invalid email format' })
+    }
+
+    // Find user by email
+    let userRecord
+    try {
+      userRecord = await admin.auth().getUserByEmail(email)
+    } catch (err) {
+      if (err && err.code === 'auth/user-not-found') {
+        return res.status(404).json({ success: false, error: 'User not found for provided email' })
+      }
+      throw err
+    }
+
+    const uid = userRecord.uid
+
+    // Update Firestore profile with is_triple_hugger field set to "No"
+    await db.collection('users').doc(uid).set({
+      is_triple_hugger: 'No',
+      updatedAt: admin.firestore.Timestamp.now()
+    }, { merge: true })
+
+    res.json({ 
+      success: true, 
+      uid, 
+      email, 
+      is_triple_hugger: 'No',
+      message: 'User marked as double hugger'
+    })
+  } catch (error) {
+    console.error('Error making user double hugger:', error)
+    res.status(500).json({ success: false, error: error?.message || 'Internal server error' })
+  }
+})
+
+// GHL: Make user a double hugger (API key auth)
+app.post('/api/ghl/make-double-hugger', authenticateApiKey, async (req, res) => {
+  try {
+    const { email } = req.body || {}
+
+    if (!email || typeof email !== 'string') {
+      return res.status(400).json({ success: false, error: 'Valid email is required' })
+    }
+
+    // Basic email format validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ success: false, error: 'Invalid email format' })
+    }
+
+    // Find user by email
+    let userRecord
+    try {
+      userRecord = await admin.auth().getUserByEmail(email)
+    } catch (err) {
+      if (err && err.code === 'auth/user-not-found') {
+        return res.status(404).json({ success: false, error: 'User not found for provided email' })
+      }
+      throw err
+    }
+
+    const uid = userRecord.uid
+
+    // Update Firestore profile with is_triple_hugger field set to "No"
+    await db.collection('users').doc(uid).set({
+      is_triple_hugger: 'No',
+      updatedAt: admin.firestore.Timestamp.now()
+    }, { merge: true })
+
+    res.json({ 
+      success: true, 
+      uid, 
+      email, 
+      is_triple_hugger: 'No',
+      message: 'User marked as double hugger (GHL)'
+    })
+  } catch (error) {
+    console.error('Error making user double hugger (GHL):', error)
+    res.status(500).json({ success: false, error: error?.message || 'Internal server error' })
+  }
+})
+
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
