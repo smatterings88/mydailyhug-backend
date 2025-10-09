@@ -422,6 +422,42 @@ Response
 
 ---
 
+## GHL: Make User Triple Hugger
+
+- Method/Path: `POST /api/ghl/make-triple-hugger`
+- Auth: `X-API-Key`
+- Description: Marks a user as a triple hugger by setting `is_triple_hugger: "Yes"` in their Firestore profile (GHL version with API key auth).
+
+Headers
+- `X-API-Key: <GHL_API_KEY>`
+- `Content-Type: application/json`
+
+Request body
+```json
+{ "email": "user@example.com" }
+```
+
+Example
+```bash
+curl -X POST <your-backend-url>/api/ghl/make-triple-hugger \
+  -H "X-API-Key: <GHL_API_KEY>" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@example.com"}'
+```
+
+Response
+```json
+{
+  "success": true,
+  "uid": "<firebase-uid>",
+  "email": "user@example.com",
+  "is_triple_hugger": "Yes",
+  "message": "User marked as triple hugger (GHL)"
+}
+```
+
+---
+
 ## Error Responses (General)
 
 - 400: Invalid or missing parameters (e.g., missing `email` or `uid`).
