@@ -388,13 +388,14 @@ curl -X POST <your-backend-url>/api/ghl/make-active \
 
 ---
 
-## Make User Triple Hugger
+## Admin: Make User Triple Hugger
 
 - Method/Path: `POST /api/make-triple-hugger`
-- Auth: None
+- Auth: Bearer admin token
 - Description: Marks a user as a triple hugger by setting `is_triple_hugger: "Yes"` in their Firestore profile.
 
 Headers
+- `Authorization: Bearer <admin-id-token>`
 - `Content-Type: application/json`
 
 Request body
@@ -405,6 +406,7 @@ Request body
 Example
 ```bash
 curl -X POST <your-backend-url>/api/make-triple-hugger \
+  -H "Authorization: Bearer <admin-id-token>" \
   -H "Content-Type: application/json" \
   -d '{"email":"user@example.com"}'
 ```

@@ -833,8 +833,8 @@ app.post('/api/ghl/make-active', authenticateApiKey, async (req, res) => {
   }
 })
 
-// Make user a triple hugger
-app.post('/api/make-triple-hugger', async (req, res) => {
+// Make user a triple hugger (admin only)
+app.post('/api/make-triple-hugger', authenticateAdmin, async (req, res) => {
   try {
     const { email } = req.body || {}
 
