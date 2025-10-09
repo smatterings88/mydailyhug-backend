@@ -388,6 +388,40 @@ curl -X POST <your-backend-url>/api/ghl/make-active \
 
 ---
 
+## Make User Triple Hugger
+
+- Method/Path: `POST /api/make-triple-hugger`
+- Auth: None
+- Description: Marks a user as a triple hugger by setting `is_triple_hugger: "Yes"` in their Firestore profile.
+
+Headers
+- `Content-Type: application/json`
+
+Request body
+```json
+{ "email": "user@example.com" }
+```
+
+Example
+```bash
+curl -X POST <your-backend-url>/api/make-triple-hugger \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@example.com"}'
+```
+
+Response
+```json
+{
+  "success": true,
+  "uid": "<firebase-uid>",
+  "email": "user@example.com",
+  "is_triple_hugger": "Yes",
+  "message": "User marked as triple hugger"
+}
+```
+
+---
+
 ## Error Responses (General)
 
 - 400: Invalid or missing parameters (e.g., missing `email` or `uid`).
