@@ -460,13 +460,14 @@ Response
 
 ---
 
-## Make User Double Hugger
+## Admin: Make User Double Hugger
 
 - Method/Path: `POST /api/make-double-hugger`
-- Auth: None
+- Auth: Bearer admin token
 - Description: Marks a user as a double hugger by setting `is_triple_hugger: "No"` in their Firestore profile.
 
 Headers
+- `Authorization: Bearer <admin-id-token>`
 - `Content-Type: application/json`
 
 Request body
@@ -477,6 +478,7 @@ Request body
 Example
 ```bash
 curl -X POST <your-backend-url>/api/make-double-hugger \
+  -H "Authorization: Bearer <admin-id-token>" \
   -H "Content-Type: application/json" \
   -d '{"email":"user@example.com"}'
 ```
