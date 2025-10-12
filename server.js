@@ -37,6 +37,7 @@ app.use(helmet());
 app.use(cors({
   origin: [
     'https://app.mydailyhug.com',
+    'https://app.dailyhug.com',
     'http://localhost:8080',
     'http://localhost:3000'
   ],
