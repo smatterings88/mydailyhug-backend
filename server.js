@@ -12,11 +12,32 @@ const PORT = process.env.PORT || 3001;
 app.set('trust proxy', 1);
 
 // Initialize Firebase Admin SDK
+console.log('Initializing Firebase Admin SDK...');
+console.log('FIREBASE_PROJECT_ID:', process.env.FIREBASE_PROJECT_ID ? 'SET' : 'MISSING');
+console.log('FIREBASE_CLIENT_EMAIL:', process.env.FIREBASE_CLIENT_EMAIL ? 'SET' : 'MISSING');
+console.log('FIREBASE_PRIVATE_KEY:', process.env.FIREBASE_PRIVATE_KEY ? 'SET' : 'MISSING');
+
+// Validate required environment variables
+if (!process.env.FIREBASE_PROJECT_ID) {
+  console.error('FIREBASE_PROJECT_ID environment variable is required');
+  process.exit(1);
+}
+
+if (!process.env.FIREBASE_CLIENT_EMAIL) {
+  console.error('FIREBASE_CLIENT_EMAIL environment variable is required');
+  process.exit(1);
+}
+
+if (!process.env.FIREBASE_PRIVATE_KEY) {
+  console.error('FIREBASE_PRIVATE_KEY environment variable is required');
+  process.exit(1);
+}
+
 const serviceAccount = {
   type: "service_account",
   project_id: process.env.FIREBASE_PROJECT_ID,
   private_key_id: process.env.FIREBASE_PRIVATE_KEY_ID,
-  private_key: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+  private_key: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
   client_email: process.env.FIREBASE_CLIENT_EMAIL,
   client_id: process.env.FIREBASE_CLIENT_ID,
   auth_uri: "https://accounts.google.com/o/oauth2/auth",
@@ -25,10 +46,16 @@ const serviceAccount = {
   client_x509_cert_url: `https://www.googleapis.com/robot/v1/metadata/x509/${process.env.FIREBASE_CLIENT_EMAIL}`
 };
 
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount),
-  projectId: process.env.FIREBASE_PROJECT_ID
-});
+try {
+  admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount),
+    projectId: process.env.FIREBASE_PROJECT_ID
+  });
+  console.log('Firebase Admin SDK initialized successfully');
+} catch (error) {
+  console.error('Failed to initialize Firebase Admin SDK:', error);
+  process.exit(1);
+}
 
 const db = admin.firestore();
 
@@ -245,10 +272,15 @@ app.post('/api/send-notification', async (req, res) => {
     };
 
     // Send notifications using multicast for better performance
+    console.log(`Sending notification to ${tokens.length} tokens`);
+    console.log('Message payload:', JSON.stringify(message, null, 2));
+    
     if (tokens.length === 1) {
       // Single token - use send method
       try {
+        console.log('Sending to single token:', tokens[0].substring(0, 20) + '...');
         response = await admin.messaging().send({ ...message, token: tokens[0] });
+        console.log('Single token send successful:', response);
         res.json({
           success: true,
           messageId: response,
@@ -260,6 +292,11 @@ app.post('/api/send-notification', async (req, res) => {
         });
       } catch (error) {
         console.error('Failed to send to single token:', error);
+        console.error('Error details:', {
+          code: error.code,
+          message: error.message,
+          stack: error.stack
+        });
         if (error.code === 'messaging/registration-token-not-registered') {
           res.json({
             success: false,
@@ -277,7 +314,13 @@ app.post('/api/send-notification', async (req, res) => {
     } else {
       // Multiple tokens - use sendMulticast method
       try {
+        console.log('Sending multicast to tokens:', tokens.map(t => t.substring(0, 20) + '...'));
         response = await admin.messaging().sendMulticast({ ...message, tokens });
+        console.log('Multicast send response:', {
+          successCount: response.successCount,
+          failureCount: response.failureCount,
+          responses: response.responses.length
+        });
         
         const successful = response.successCount;
         const failed = response.failureCount;
@@ -306,6 +349,11 @@ app.post('/api/send-notification', async (req, res) => {
         });
       } catch (error) {
         console.error('Failed to send multicast:', error);
+        console.error('Error details:', {
+          code: error.code,
+          message: error.message,
+          stack: error.stack
+        });
         throw error;
       }
     }
