@@ -344,7 +344,23 @@ app.post('/api/send-notification', async (req, res) => {
           });
           
           const userTokens = await Promise.all(userPromises);
-          tokens = userTokens.filter(token => token !== null);
+          const allTokens = userTokens.filter(token => token !== null);
+          
+          // Validate each token before adding to final list
+          console.log(`Found ${allTokens.length} tokens for specific users, validating...`);
+          tokens = [];
+          for (const token of allTokens) {
+            try {
+              await admin.messaging().send({
+                token: token,
+                notification: { title: 'Validation', body: 'Testing token' }
+              });
+              tokens.push(token);
+            } catch (error) {
+              console.log(`Token ${token.substring(0, 20)}... is invalid for specific user:`, error.code);
+            }
+          }
+          console.log(`Validated ${tokens.length} tokens for specific users`);
         } else {
           // Get tokens based on user type
           let query = db.collection('users');
@@ -354,13 +370,29 @@ app.post('/api/send-notification', async (req, res) => {
           }
           
           const snapshot = await query.get();
-          tokens = snapshot.docs
+          const allTokens = snapshot.docs
             .map(doc => {
               const userData = doc.data();
               // Only include users with valid FCM tokens (messaging enabled)
               return userData.fcmToken && userData.fcmToken.trim() !== '' ? userData.fcmToken : null;
             })
             .filter(token => token !== null && token !== undefined);
+          
+          // Validate each token before adding to final list
+          console.log(`Found ${allTokens.length} tokens for ${targetType} users, validating...`);
+          tokens = [];
+          for (const token of allTokens) {
+            try {
+              await admin.messaging().send({
+                token: token,
+                notification: { title: 'Validation', body: 'Testing token' }
+              });
+              tokens.push(token);
+            } catch (error) {
+              console.log(`Token ${token.substring(0, 20)}... is invalid for ${targetType}:`, error.code);
+            }
+          }
+          console.log(`Validated ${tokens.length} tokens for ${targetType} users`);
         }
         break;
 
@@ -449,78 +481,32 @@ app.post('/api/send-notification', async (req, res) => {
         }
       }
     } else {
-      // Multiple tokens - validate each token first, then send only to valid ones
-      console.log('Validating tokens before sending:', tokens.map(t => t.substring(0, 20) + '...'));
+      // Multiple tokens - tokens are already validated, send directly
+      console.log('Sending multicast to validated tokens:', tokens.map(t => t.substring(0, 20) + '...'));
       
-      const validTokens = [];
-      const invalidTokens = [];
-      
-      // Test each token individually first
-      for (const token of tokens) {
-        try {
-          await admin.messaging().send({
-            token: token,
-            notification: { title: 'Validation', body: 'Testing token' }
-          });
-          validTokens.push(token);
-        } catch (error) {
-          console.log(`Token ${token.substring(0, 20)}... is invalid:`, error.code);
-          invalidTokens.push({
-            token: token.substring(0, 20) + '...',
-            error: error.code || 'unknown'
-          });
-        }
-      }
-      
-      console.log(`Found ${validTokens.length} valid tokens, ${invalidTokens.length} invalid tokens`);
-      
-      if (validTokens.length === 0) {
-        return res.json({
-          success: false,
-          error: 'No valid FCM tokens found',
-          stats: {
-            total: tokens.length,
-            successful: 0,
-            failed: tokens.length
-          },
-          invalidTokens
-        });
-      }
-      
-      // Send to valid tokens only
       try {
-        if (validTokens.length === 1) {
-          // Single valid token - use send method
-          response = await admin.messaging().send({ ...message, token: validTokens[0] });
-          console.log('Single valid token send successful:', response);
-        } else {
-          // Multiple valid tokens - use sendMulticast method
-          console.log('Sending multicast to valid tokens:', validTokens.map(t => t.substring(0, 20) + '...'));
-          response = await admin.messaging().sendMulticast({ ...message, tokens: validTokens });
-          console.log('Multicast send response:', {
-            successCount: response.successCount,
-            failureCount: response.failureCount,
-            responses: response.responses.length
-          });
-        }
+        response = await admin.messaging().sendMulticast({ ...message, tokens });
+        console.log('Multicast send response:', {
+          successCount: response.successCount,
+          failureCount: response.failureCount,
+          responses: response.responses.length
+        });
         
-        const successful = validTokens.length;
-        const failed = invalidTokens.length;
+        const successful = response.successCount;
+        const failed = response.failureCount;
 
         res.json({
           success: true,
-          messageId: typeof response === 'string' ? response : response.responses?.[0]?.messageId,
+          messageId: response.responses?.[0]?.messageId,
           stats: {
             total: tokens.length,
             successful,
             failed
           },
-          invalidTokens,
-          validTokensSent: validTokens.length,
-          message: `${successful} notifications sent successfully, ${failed} tokens were invalid`
+          message: `${successful} notifications sent successfully`
         });
       } catch (error) {
-        console.error('Failed to send to valid tokens:', error);
+        console.error('Failed to send multicast:', error);
         console.error('Error details:', {
           code: error.code,
           message: error.message,
@@ -535,7 +521,6 @@ app.post('/api/send-notification', async (req, res) => {
             details: 'The FCM API is not enabled for this Firebase project',
             suggestion: 'Enable Firebase Cloud Messaging API in Google Cloud Console',
             tokensFound: tokens.length,
-            validTokens: validTokens.length,
             projectId: process.env.FIREBASE_PROJECT_ID
           });
         }
