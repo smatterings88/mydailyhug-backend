@@ -215,13 +215,21 @@ app.post('/api/send-notification', async (req, res) => {
     }
 
     // Prepare notification payload
+    // Convert all data values to strings (FCM requirement)
+    const stringifiedData = {}
+    if (data && typeof data === 'object') {
+      Object.keys(data).forEach(key => {
+        stringifiedData[key] = String(data[key])
+      })
+    }
+    
     message = {
       notification: {
         title,
         body
       },
       data: {
-        ...data,
+        ...stringifiedData,
         timestamp: Date.now().toString(),
         source: 'backend-service'
       },
@@ -1142,13 +1150,21 @@ app.post('/api/ghl/send-notification', authenticateApiKey, async (req, res) => {
     }
 
     // Prepare notification payload
+    // Convert all data values to strings (FCM requirement)
+    const stringifiedData = {}
+    if (data && typeof data === 'object') {
+      Object.keys(data).forEach(key => {
+        stringifiedData[key] = String(data[key])
+      })
+    }
+    
     const message = {
       notification: {
         title,
         body
       },
       data: {
-        ...data,
+        ...stringifiedData,
         timestamp: Date.now().toString(),
         source: 'ghl-integration'
       },
