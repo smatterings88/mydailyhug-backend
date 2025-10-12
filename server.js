@@ -429,6 +429,19 @@ app.post('/api/send-notification', async (req, res) => {
           message: error.message,
           stack: error.stack
         });
+        
+        // Handle FCM API not enabled error
+        if (error.code === 'messaging/unknown-error' && error.message.includes('404')) {
+          return res.status(503).json({
+            success: false,
+            error: 'Firebase Cloud Messaging API not enabled',
+            details: 'The FCM API is not enabled for this Firebase project',
+            suggestion: 'Enable Firebase Cloud Messaging API in Google Cloud Console',
+            tokensFound: tokens.length,
+            projectId: process.env.FIREBASE_PROJECT_ID
+          });
+        }
+        
         throw error;
       }
     }
@@ -1406,6 +1419,22 @@ app.post('/api/ghl/send-notification', authenticateApiKey, async (req, res) => {
         })
       } catch (error) {
         console.error('Failed to send multicast (GHL):', error)
+        
+        // Handle FCM API not enabled error
+        if (error.code === 'messaging/unknown-error' && error.message.includes('404')) {
+          return res.status(503).json({
+            success: false,
+            error: 'Firebase Cloud Messaging API not enabled',
+            details: 'The FCM API is not enabled for this Firebase project',
+            suggestion: 'Enable Firebase Cloud Messaging API in Google Cloud Console',
+            tokensFound: validTokens.length,
+            projectId: process.env.FIREBASE_PROJECT_ID,
+            targetEmails,
+            validEmails: targetEmails.filter((email, index) => tokens[index] !== null),
+            invalidEmails: targetEmails.filter((email, index) => tokens[index] === null)
+          })
+        }
+        
         throw error
       }
     }
