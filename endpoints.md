@@ -39,20 +39,27 @@ Request body
 {
   "title": "Notification Title",
   "body": "Notification message",
-  "targetType": "all|admin|user",
+  "targetType": "all|admin|user|specific",
   "targetUsers": ["uid1", "uid2"],
+  "targetTokens": ["token1", "token2", "token3"],
   "icon": "/path/to/icon.png",
   "badge": "/path/to/badge.png",
-  "data": { "custom": "data" }
+  "data": {
+    "persistent": true,
+    "timestamp": 1234567890,
+    "source": "admin-panel"
+  }
 }
 ```
 
 Notes
-- If `targetUsers` is provided and non-empty, those UIDs are targeted.
-- Otherwise, `targetType` is used (default: `all`).
-- Users must have `fcmToken` stored in `users/{uid}`.
+- `targetType: "specific"` requires `targetTokens` array with FCM tokens
+- If `targetUsers` is provided and non-empty, those UIDs are targeted (for all/admin/user types)
+- Otherwise, `targetType` is used to query Firestore users (default: `all`)
+- Users must have `fcmToken` stored in `users/{uid}` for all/admin/user targeting
+- `data` field is passed through to FCM and can include persistent flags
 
-Example
+Example (All Users)
 ```bash
 curl -X POST <your-backend-url>/api/send-notification \
   -H "Content-Type: application/json" \
@@ -63,12 +70,30 @@ curl -X POST <your-backend-url>/api/send-notification \
   }'
 ```
 
+Example (Specific Tokens)
+```bash
+curl -X POST <your-backend-url>/api/send-notification \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title":"Hello",
+    "body":"This is a test",
+    "targetType":"specific",
+    "targetTokens":["token1", "token2"],
+    "data":{"persistent":true}
+  }'
+```
+
 Response
 ```json
 {
   "success": true,
-  "messageId": "batch-1699999999999",
-  "stats": { "total": 10, "successful": 9, "failed": 1 }
+  "messageId": "projects/your-project/messages/0:1234567890",
+  "stats": { "total": 10, "successful": 9, "failed": 1 },
+  "response": {
+    "successCount": 9,
+    "failureCount": 1,
+    "responses": [...]
+  }
 }
 ```
 

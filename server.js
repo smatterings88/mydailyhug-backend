@@ -129,9 +129,18 @@ app.get('/health', (req, res) => {
 // Send notification endpoint
 app.post('/api/send-notification', async (req, res) => {
   try {
-    const { title, body, targetType = 'all', targetUsers = [], icon, badge, data } = req.body;
+    const { 
+      title, 
+      body, 
+      targetType = 'all', 
+      targetUsers = [], 
+      targetTokens = [],
+      icon, 
+      badge, 
+      data 
+    } = req.body;
 
-    // Validate required fields
+    // Validation
     if (!title || !body) {
       return res.status(400).json({
         success: false,
@@ -139,30 +148,62 @@ app.post('/api/send-notification', async (req, res) => {
       });
     }
 
-    // Get FCM tokens based on target type
-    let tokens = [];
-    
-    if (targetUsers.length > 0) {
-      // Get tokens for specific users
-      const userPromises = targetUsers.map(async (userId) => {
-        const userDoc = await db.collection('users').doc(userId).get();
-        return userDoc.exists ? userDoc.data().fcmToken : null;
+    if (!['all', 'admin', 'user', 'specific'].includes(targetType)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid targetType'
       });
-      
-      const userTokens = await Promise.all(userPromises);
-      tokens = userTokens.filter(token => token !== null);
-    } else {
-      // Get tokens based on user type
-      let query = db.collection('users');
-      
-      if (targetType !== 'all') {
-        query = query.where('userType', '==', targetType);
-      }
-      
-      const snapshot = await query.get();
-      tokens = snapshot.docs
-        .map(doc => doc.data().fcmToken)
-        .filter(token => token !== null && token !== undefined);
+    }
+
+    // Validate targetTokens for specific type
+    if (targetType === 'specific' && (!targetTokens || !Array.isArray(targetTokens) || targetTokens.length === 0)) {
+      return res.status(400).json({
+        success: false,
+        error: 'targetTokens array is required for specific targeting'
+      });
+    }
+
+    let tokens = [];
+    let message;
+    let response;
+
+    switch (targetType) {
+      case 'specific':
+        tokens = targetTokens;
+        break;
+
+      case 'all':
+      case 'admin':
+      case 'user':
+        if (targetUsers.length > 0) {
+          // Get tokens for specific users
+          const userPromises = targetUsers.map(async (userId) => {
+            const userDoc = await db.collection('users').doc(userId).get();
+            return userDoc.exists ? userDoc.data().fcmToken : null;
+          });
+          
+          const userTokens = await Promise.all(userPromises);
+          tokens = userTokens.filter(token => token !== null);
+        } else {
+          // Get tokens based on user type
+          let query = db.collection('users');
+          
+          if (targetType !== 'all') {
+            query = query.where('userType', '==', targetType);
+          }
+          
+          const snapshot = await query.get();
+          tokens = snapshot.docs
+            .map(doc => doc.data().fcmToken)
+            .filter(token => token !== null && token !== undefined);
+        }
+        break;
+
+      default:
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid target type'
+        });
     }
 
     if (tokens.length === 0) {
@@ -173,8 +214,7 @@ app.post('/api/send-notification', async (req, res) => {
     }
 
     // Prepare notification payload
-    const message = {
-      // Only title/body are allowed in top-level notification for FCM Admin
+    message = {
       notification: {
         title,
         body
@@ -185,7 +225,6 @@ app.post('/api/send-notification', async (req, res) => {
         source: 'backend-service'
       },
       webpush: {
-        // Web Push-specific notification fields
         notification: {
           icon: icon || '/MDH_favicon.png',
           badge: badge || '/MDH_favicon.png'
@@ -196,36 +235,50 @@ app.post('/api/send-notification', async (req, res) => {
       }
     };
 
-    // Send notifications
-    const results = await Promise.allSettled(
-      tokens.map(token => admin.messaging().send({ ...message, token }))
-    );
+    // Send notifications using multicast for better performance
+    if (tokens.length === 1) {
+      // Single token - use send method
+      response = await admin.messaging().send({ ...message, token: tokens[0] });
+      res.json({
+        success: true,
+        messageId: response,
+        stats: {
+          total: 1,
+          successful: 1,
+          failed: 0
+        }
+      });
+    } else {
+      // Multiple tokens - use sendMulticast method
+      response = await admin.messaging().sendMulticast({ ...message, tokens });
+      
+      const successful = response.successCount;
+      const failed = response.failureCount;
 
-    const successful = results.filter(result => result.status === 'fulfilled').length;
-    const failed = results.filter(result => result.status === 'rejected').length;
+      // Log failed sends
+      response.responses.forEach((result, index) => {
+        if (!result.success) {
+          console.error(`Failed to send to token ${tokens[index].substring(0, 20)}...:`, result.error);
+        }
+      });
 
-    // Log failed sends
-    results.forEach((result, index) => {
-      if (result.status === 'rejected') {
-        console.error(`Failed to send to token ${tokens[index].substring(0, 20)}...:`, result.reason);
-      }
-    });
-
-    res.json({
-      success: true,
-      messageId: `batch-${Date.now()}`,
-      stats: {
-        total: tokens.length,
-        successful,
-        failed
-      }
-    });
+      res.json({
+        success: true,
+        messageId: response.responses?.[0]?.messageId,
+        stats: {
+          total: tokens.length,
+          successful,
+          failed
+        },
+        response: response
+      });
+    }
 
   } catch (error) {
     console.error('Error sending notification:', error);
     res.status(500).json({
       success: false,
-      error: 'Internal server error'
+      error: error.message || 'Internal server error'
     });
   }
 });
