@@ -449,43 +449,78 @@ app.post('/api/send-notification', async (req, res) => {
         }
       }
     } else {
-      // Multiple tokens - use sendMulticast method
+      // Multiple tokens - validate each token first, then send only to valid ones
+      console.log('Validating tokens before sending:', tokens.map(t => t.substring(0, 20) + '...'));
+      
+      const validTokens = [];
+      const invalidTokens = [];
+      
+      // Test each token individually first
+      for (const token of tokens) {
+        try {
+          await admin.messaging().send({
+            token: token,
+            notification: { title: 'Validation', body: 'Testing token' }
+          });
+          validTokens.push(token);
+        } catch (error) {
+          console.log(`Token ${token.substring(0, 20)}... is invalid:`, error.code);
+          invalidTokens.push({
+            token: token.substring(0, 20) + '...',
+            error: error.code || 'unknown'
+          });
+        }
+      }
+      
+      console.log(`Found ${validTokens.length} valid tokens, ${invalidTokens.length} invalid tokens`);
+      
+      if (validTokens.length === 0) {
+        return res.json({
+          success: false,
+          error: 'No valid FCM tokens found',
+          stats: {
+            total: tokens.length,
+            successful: 0,
+            failed: tokens.length
+          },
+          invalidTokens
+        });
+      }
+      
+      // Send to valid tokens only
       try {
-        console.log('Sending multicast to tokens:', tokens.map(t => t.substring(0, 20) + '...'));
-        response = await admin.messaging().sendMulticast({ ...message, tokens });
-        console.log('Multicast send response:', {
-          successCount: response.successCount,
-          failureCount: response.failureCount,
-          responses: response.responses.length
-        });
+        if (validTokens.length === 1) {
+          // Single valid token - use send method
+          response = await admin.messaging().send({ ...message, token: validTokens[0] });
+          console.log('Single valid token send successful:', response);
+        } else {
+          // Multiple valid tokens - use sendMulticast method
+          console.log('Sending multicast to valid tokens:', validTokens.map(t => t.substring(0, 20) + '...'));
+          response = await admin.messaging().sendMulticast({ ...message, tokens: validTokens });
+          console.log('Multicast send response:', {
+            successCount: response.successCount,
+            failureCount: response.failureCount,
+            responses: response.responses.length
+          });
+        }
         
-        const successful = response.successCount;
-        const failed = response.failureCount;
-
-        // Log failed sends and identify invalid tokens
-        const invalidTokens = [];
-        response.responses.forEach((result, index) => {
-          if (!result.success) {
-            console.error(`Failed to send to token ${tokens[index].substring(0, 20)}...:`, result.error);
-            if (result.error?.code === 'messaging/registration-token-not-registered') {
-              invalidTokens.push(tokens[index]);
-            }
-          }
-        });
+        const successful = validTokens.length;
+        const failed = invalidTokens.length;
 
         res.json({
           success: true,
-          messageId: response.responses?.[0]?.messageId,
+          messageId: typeof response === 'string' ? response : response.responses?.[0]?.messageId,
           stats: {
             total: tokens.length,
             successful,
             failed
           },
-          invalidTokens: invalidTokens.length > 0 ? invalidTokens.map(t => t.substring(0, 20) + '...') : [],
-          response: response
+          invalidTokens,
+          validTokensSent: validTokens.length,
+          message: `${successful} notifications sent successfully, ${failed} tokens were invalid`
         });
       } catch (error) {
-        console.error('Failed to send multicast:', error);
+        console.error('Failed to send to valid tokens:', error);
         console.error('Error details:', {
           code: error.code,
           message: error.message,
@@ -500,6 +535,7 @@ app.post('/api/send-notification', async (req, res) => {
             details: 'The FCM API is not enabled for this Firebase project',
             suggestion: 'Enable Firebase Cloud Messaging API in Google Cloud Console',
             tokensFound: tokens.length,
+            validTokens: validTokens.length,
             projectId: process.env.FIREBASE_PROJECT_ID
           });
         }
@@ -1447,27 +1483,70 @@ app.post('/api/ghl/send-notification', authenticateApiKey, async (req, res) => {
         }
       }
     } else {
-      // Multiple tokens - use sendMulticast method
-      try {
-        response = await admin.messaging().sendMulticast({ ...message, tokens: validTokens })
-        
-        const successful = response.successCount
-        const failed = response.failureCount
-
-        // Log failed sends and identify invalid tokens
-        const invalidTokens = []
-        response.responses.forEach((result, index) => {
-          if (!result.success) {
-            console.error(`Failed to send to token ${validTokens[index].substring(0, 20)}...:`, result.error)
-            if (result.error?.code === 'messaging/registration-token-not-registered') {
-              invalidTokens.push(validTokens[index])
-            }
-          }
+      // Multiple tokens - validate each token first, then send only to valid ones
+      console.log('Validating tokens before sending (GHL):', validTokens.map(t => t.substring(0, 20) + '...'))
+      
+      const verifiedValidTokens = []
+      const invalidTokens = []
+      
+      // Test each token individually first
+      for (const token of validTokens) {
+        try {
+          await admin.messaging().send({
+            token: token,
+            notification: { title: 'Validation', body: 'Testing token' }
+          })
+          verifiedValidTokens.push(token)
+        } catch (error) {
+          console.log(`Token ${token.substring(0, 20)}... is invalid:`, error.code)
+          invalidTokens.push({
+            token: token.substring(0, 20) + '...',
+            error: error.code || 'unknown'
+          })
+        }
+      }
+      
+      console.log(`Found ${verifiedValidTokens.length} valid tokens, ${invalidTokens.length} invalid tokens`)
+      
+      if (verifiedValidTokens.length === 0) {
+        return res.json({
+          success: false,
+          error: 'No valid FCM tokens found',
+          stats: {
+            total: validTokens.length,
+            successful: 0,
+            failed: validTokens.length
+          },
+          targetEmails,
+          validEmails: targetEmails.filter((email, index) => tokens[index] !== null),
+          invalidEmails: targetEmails.filter((email, index) => tokens[index] === null),
+          invalidTokens
         })
+      }
+      
+      // Send to verified valid tokens only
+      try {
+        if (verifiedValidTokens.length === 1) {
+          // Single valid token - use send method
+          response = await admin.messaging().send({ ...message, token: verifiedValidTokens[0] })
+          console.log('Single valid token send successful (GHL):', response)
+        } else {
+          // Multiple valid tokens - use sendMulticast method
+          console.log('Sending multicast to verified valid tokens (GHL):', verifiedValidTokens.map(t => t.substring(0, 20) + '...'))
+          response = await admin.messaging().sendMulticast({ ...message, tokens: verifiedValidTokens })
+          console.log('Multicast send response (GHL):', {
+            successCount: response.successCount,
+            failureCount: response.failureCount,
+            responses: response.responses.length
+          })
+        }
+        
+        const successful = verifiedValidTokens.length
+        const failed = invalidTokens.length
 
         res.json({
           success: true,
-          messageId: response.responses?.[0]?.messageId,
+          messageId: typeof response === 'string' ? response : response.responses?.[0]?.messageId,
           stats: {
             total: validTokens.length,
             successful,
@@ -1476,11 +1555,12 @@ app.post('/api/ghl/send-notification', authenticateApiKey, async (req, res) => {
           targetEmails,
           validEmails: targetEmails.filter((email, index) => tokens[index] !== null),
           invalidEmails: targetEmails.filter((email, index) => tokens[index] === null),
-          invalidTokens: invalidTokens.length > 0 ? invalidTokens.map(t => t.substring(0, 20) + '...') : [],
-          response: response
+          invalidTokens,
+          validTokensSent: verifiedValidTokens.length,
+          message: `${successful} notifications sent successfully, ${failed} tokens were invalid`
         })
       } catch (error) {
-        console.error('Failed to send multicast (GHL):', error)
+        console.error('Failed to send to verified valid tokens (GHL):', error)
         
         // Handle FCM API not enabled error
         if (error.code === 'messaging/unknown-error' && error.message.includes('404')) {
@@ -1490,6 +1570,7 @@ app.post('/api/ghl/send-notification', authenticateApiKey, async (req, res) => {
             details: 'The FCM API is not enabled for this Firebase project',
             suggestion: 'Enable Firebase Cloud Messaging API in Google Cloud Console',
             tokensFound: validTokens.length,
+            validTokens: verifiedValidTokens.length,
             projectId: process.env.FIREBASE_PROJECT_ID,
             targetEmails,
             validEmails: targetEmails.filter((email, index) => tokens[index] !== null),
