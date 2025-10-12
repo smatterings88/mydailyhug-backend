@@ -557,6 +557,79 @@ Response
 
 ---
 
+## GHL: Send Notification to Specific Users by Email
+
+- Method/Path: `POST /api/ghl/send-notification`
+- Auth: `X-API-Key`
+- Description: Sends push notifications to specific users by their email addresses (GHL version with API key auth).
+
+Headers
+- `X-API-Key: <GHL_API_KEY>`
+- `Content-Type: application/json`
+
+Request body
+```json
+{
+  "title": "Notification Title",
+  "body": "Notification message",
+  "targetEmails": ["user1@example.com", "user2@example.com"],
+  "icon": "/path/to/icon.png",
+  "badge": "/path/to/badge.png",
+  "data": {
+    "persistent": true,
+    "timestamp": 1234567890,
+    "source": "ghl-integration"
+  }
+}
+```
+
+Notes
+- `targetEmails` array is required and must contain valid email addresses
+- Users must exist in Firebase Auth and have `fcmToken` stored in Firestore
+- Invalid emails or users without FCM tokens are skipped and reported in response
+- `data` field is passed through to FCM for persistent notifications
+
+Example
+```bash
+curl -X POST <your-backend-url>/api/ghl/send-notification \
+  -H "X-API-Key: <GHL_API_KEY>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title":"Hello from GHL",
+    "body":"This is a test notification",
+    "targetEmails":["user1@example.com", "user2@example.com"],
+    "data":{"persistent":true}
+  }'
+```
+
+Response
+```json
+{
+  "success": true,
+  "messageId": "projects/your-project/messages/0:1234567890",
+  "stats": {
+    "total": 2,
+    "successful": 2,
+    "failed": 0
+  },
+  "targetEmails": ["user1@example.com", "user2@example.com"],
+  "validEmails": ["user1@example.com", "user2@example.com"],
+  "invalidEmails": [],
+  "response": {
+    "successCount": 2,
+    "failureCount": 0,
+    "responses": [...]
+  }
+}
+```
+
+Error cases:
+- Missing `targetEmails` array: `400 targetEmails array is required and must not be empty`
+- Invalid email format: `400 Invalid email format(s): invalid@email`
+- No valid users found: `200 success: false, error: No users found with valid FCM tokens`
+
+---
+
 ## Error Responses (General)
 
 - 400: Invalid or missing parameters (e.g., missing `email` or `uid`).

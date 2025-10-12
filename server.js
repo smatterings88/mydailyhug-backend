@@ -1078,6 +1078,145 @@ app.post('/api/ghl/make-double-hugger', authenticateApiKey, async (req, res) => 
   }
 })
 
+// GHL: Send notification to specific users by email (API key auth)
+app.post('/api/ghl/send-notification', authenticateApiKey, async (req, res) => {
+  try {
+    const { 
+      title, 
+      body, 
+      targetEmails = [],
+      icon, 
+      badge, 
+      data 
+    } = req.body
+
+    // Validation
+    if (!title || !body) {
+      return res.status(400).json({
+        success: false,
+        error: 'Title and body are required'
+      })
+    }
+
+    if (!targetEmails || !Array.isArray(targetEmails) || targetEmails.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'targetEmails array is required and must not be empty'
+      })
+    }
+
+    // Validate email formats
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    const invalidEmails = targetEmails.filter(email => !emailRegex.test(email))
+    if (invalidEmails.length > 0) {
+      return res.status(400).json({
+        success: false,
+        error: `Invalid email format(s): ${invalidEmails.join(', ')}`
+      })
+    }
+
+    // Get FCM tokens for the specified emails
+    const tokenPromises = targetEmails.map(async (email) => {
+      try {
+        const userRecord = await admin.auth().getUserByEmail(email)
+        const userDoc = await db.collection('users').doc(userRecord.uid).get()
+        return userDoc.exists ? userDoc.data().fcmToken : null
+      } catch (err) {
+        if (err && err.code === 'auth/user-not-found') {
+          console.warn(`User not found for email: ${email}`)
+          return null
+        }
+        throw err
+      }
+    })
+
+    const tokens = await Promise.all(tokenPromises)
+    const validTokens = tokens.filter(token => token !== null)
+
+    if (validTokens.length === 0) {
+      return res.json({
+        success: false,
+        error: 'No users found with valid FCM tokens for the specified emails'
+      })
+    }
+
+    // Prepare notification payload
+    const message = {
+      notification: {
+        title,
+        body
+      },
+      data: {
+        ...data,
+        timestamp: Date.now().toString(),
+        source: 'ghl-integration'
+      },
+      webpush: {
+        notification: {
+          icon: icon || '/MDH_favicon.png',
+          badge: badge || '/MDH_favicon.png'
+        },
+        fcm_options: {
+          link: process.env.FRONTEND_URL || 'http://localhost:8080'
+        }
+      }
+    }
+
+    // Send notifications using multicast for better performance
+    let response
+    if (validTokens.length === 1) {
+      // Single token - use send method
+      response = await admin.messaging().send({ ...message, token: validTokens[0] })
+      res.json({
+        success: true,
+        messageId: response,
+        stats: {
+          total: 1,
+          successful: 1,
+          failed: 0
+        },
+        targetEmails,
+        validEmails: targetEmails.filter((email, index) => tokens[index] !== null),
+        invalidEmails: targetEmails.filter((email, index) => tokens[index] === null)
+      })
+    } else {
+      // Multiple tokens - use sendMulticast method
+      response = await admin.messaging().sendMulticast({ ...message, tokens: validTokens })
+      
+      const successful = response.successCount
+      const failed = response.failureCount
+
+      // Log failed sends
+      response.responses.forEach((result, index) => {
+        if (!result.success) {
+          console.error(`Failed to send to token ${validTokens[index].substring(0, 20)}...:`, result.error)
+        }
+      })
+
+      res.json({
+        success: true,
+        messageId: response.responses?.[0]?.messageId,
+        stats: {
+          total: validTokens.length,
+          successful,
+          failed
+        },
+        targetEmails,
+        validEmails: targetEmails.filter((email, index) => tokens[index] !== null),
+        invalidEmails: targetEmails.filter((email, index) => tokens[index] === null),
+        response: response
+      })
+    }
+
+  } catch (error) {
+    console.error('Error sending notification (GHL):', error)
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Internal server error'
+    })
+  }
+})
+
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
