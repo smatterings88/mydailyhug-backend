@@ -56,7 +56,8 @@ Notes
 - `targetType: "specific"` requires `targetTokens` array with FCM tokens
 - If `targetUsers` is provided and non-empty, those UIDs are targeted (for all/admin/user types)
 - Otherwise, `targetType` is used to query Firestore users (default: `all`)
-- Users must have `fcmToken` stored in `users/{uid}` for all/admin/user targeting
+- **Messaging filtering**: Only users with valid `fcmToken` (non-empty) receive notifications
+- Users without `fcmToken` or with empty tokens are automatically excluded
 - `data` field is passed through to FCM and can include persistent flags
 
 Example (All Users)
@@ -585,8 +586,9 @@ Request body
 
 Notes
 - `targetEmails` array is required and must contain valid email addresses
-- Users must exist in Firebase Auth and have `fcmToken` stored in Firestore
-- Invalid emails or users without FCM tokens are skipped and reported in response
+- Users must exist in Firebase Auth and have valid `fcmToken` stored in Firestore
+- **Messaging filtering**: Only users with non-empty `fcmToken` receive notifications
+- Invalid emails or users without messaging enabled are skipped and reported in response
 - `data` field is passed through to FCM for persistent notifications
 
 Example

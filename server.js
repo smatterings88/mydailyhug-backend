@@ -293,7 +293,11 @@ app.post('/api/send-notification', async (req, res) => {
           
           const snapshot = await query.get();
           tokens = snapshot.docs
-            .map(doc => doc.data().fcmToken)
+            .map(doc => {
+              const userData = doc.data();
+              // Only include users with valid FCM tokens (messaging enabled)
+              return userData.fcmToken && userData.fcmToken.trim() !== '' ? userData.fcmToken : null;
+            })
             .filter(token => token !== null && token !== undefined);
         }
         break;
@@ -308,7 +312,7 @@ app.post('/api/send-notification', async (req, res) => {
     if (tokens.length === 0) {
       return res.json({
         success: false,
-        error: 'No users have enabled notifications for the specified criteria'
+        error: 'No users with messaging enabled found for the specified criteria'
       });
     }
 
@@ -1275,7 +1279,12 @@ app.post('/api/ghl/send-notification', authenticateApiKey, async (req, res) => {
       try {
         const userRecord = await admin.auth().getUserByEmail(email)
         const userDoc = await db.collection('users').doc(userRecord.uid).get()
-        return userDoc.exists ? userDoc.data().fcmToken : null
+        if (userDoc.exists) {
+          const userData = userDoc.data()
+          // Only include users with valid FCM tokens (messaging enabled)
+          return userData.fcmToken && userData.fcmToken.trim() !== '' ? userData.fcmToken : null
+        }
+        return null
       } catch (err) {
         if (err && err.code === 'auth/user-not-found') {
           console.warn(`User not found for email: ${email}`)
@@ -1291,7 +1300,7 @@ app.post('/api/ghl/send-notification', authenticateApiKey, async (req, res) => {
     if (validTokens.length === 0) {
       return res.json({
         success: false,
-        error: 'No users found with valid FCM tokens for the specified emails'
+        error: 'No users with messaging enabled found for the specified emails'
       })
     }
 
