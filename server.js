@@ -247,40 +247,67 @@ app.post('/api/send-notification', async (req, res) => {
     // Send notifications using multicast for better performance
     if (tokens.length === 1) {
       // Single token - use send method
-      response = await admin.messaging().send({ ...message, token: tokens[0] });
-      res.json({
-        success: true,
-        messageId: response,
-        stats: {
-          total: 1,
-          successful: 1,
-          failed: 0
+      try {
+        response = await admin.messaging().send({ ...message, token: tokens[0] });
+        res.json({
+          success: true,
+          messageId: response,
+          stats: {
+            total: 1,
+            successful: 1,
+            failed: 0
+          }
+        });
+      } catch (error) {
+        console.error('Failed to send to single token:', error);
+        if (error.code === 'messaging/registration-token-not-registered') {
+          res.json({
+            success: false,
+            error: 'Invalid or expired FCM token',
+            stats: {
+              total: 1,
+              successful: 0,
+              failed: 1
+            }
+          });
+        } else {
+          throw error;
         }
-      });
+      }
     } else {
       // Multiple tokens - use sendMulticast method
-      response = await admin.messaging().sendMulticast({ ...message, tokens });
-      
-      const successful = response.successCount;
-      const failed = response.failureCount;
+      try {
+        response = await admin.messaging().sendMulticast({ ...message, tokens });
+        
+        const successful = response.successCount;
+        const failed = response.failureCount;
 
-      // Log failed sends
-      response.responses.forEach((result, index) => {
-        if (!result.success) {
-          console.error(`Failed to send to token ${tokens[index].substring(0, 20)}...:`, result.error);
-        }
-      });
+        // Log failed sends and identify invalid tokens
+        const invalidTokens = [];
+        response.responses.forEach((result, index) => {
+          if (!result.success) {
+            console.error(`Failed to send to token ${tokens[index].substring(0, 20)}...:`, result.error);
+            if (result.error?.code === 'messaging/registration-token-not-registered') {
+              invalidTokens.push(tokens[index]);
+            }
+          }
+        });
 
-      res.json({
-        success: true,
-        messageId: response.responses?.[0]?.messageId,
-        stats: {
-          total: tokens.length,
-          successful,
-          failed
-        },
-        response: response
-      });
+        res.json({
+          success: true,
+          messageId: response.responses?.[0]?.messageId,
+          stats: {
+            total: tokens.length,
+            successful,
+            failed
+          },
+          invalidTokens: invalidTokens.length > 0 ? invalidTokens.map(t => t.substring(0, 20) + '...') : [],
+          response: response
+        });
+      } catch (error) {
+        console.error('Failed to send multicast:', error);
+        throw error;
+      }
     }
 
   } catch (error) {
@@ -1183,46 +1210,76 @@ app.post('/api/ghl/send-notification', authenticateApiKey, async (req, res) => {
     let response
     if (validTokens.length === 1) {
       // Single token - use send method
-      response = await admin.messaging().send({ ...message, token: validTokens[0] })
-      res.json({
-        success: true,
-        messageId: response,
-        stats: {
-          total: 1,
-          successful: 1,
-          failed: 0
-        },
-        targetEmails,
-        validEmails: targetEmails.filter((email, index) => tokens[index] !== null),
-        invalidEmails: targetEmails.filter((email, index) => tokens[index] === null)
-      })
+      try {
+        response = await admin.messaging().send({ ...message, token: validTokens[0] })
+        res.json({
+          success: true,
+          messageId: response,
+          stats: {
+            total: 1,
+            successful: 1,
+            failed: 0
+          },
+          targetEmails,
+          validEmails: targetEmails.filter((email, index) => tokens[index] !== null),
+          invalidEmails: targetEmails.filter((email, index) => tokens[index] === null)
+        })
+      } catch (error) {
+        console.error('Failed to send to single token (GHL):', error)
+        if (error.code === 'messaging/registration-token-not-registered') {
+          res.json({
+            success: false,
+            error: 'Invalid or expired FCM token',
+            stats: {
+              total: 1,
+              successful: 0,
+              failed: 1
+            },
+            targetEmails,
+            validEmails: targetEmails.filter((email, index) => tokens[index] !== null),
+            invalidEmails: targetEmails.filter((email, index) => tokens[index] === null)
+          })
+        } else {
+          throw error
+        }
+      }
     } else {
       // Multiple tokens - use sendMulticast method
-      response = await admin.messaging().sendMulticast({ ...message, tokens: validTokens })
-      
-      const successful = response.successCount
-      const failed = response.failureCount
+      try {
+        response = await admin.messaging().sendMulticast({ ...message, tokens: validTokens })
+        
+        const successful = response.successCount
+        const failed = response.failureCount
 
-      // Log failed sends
-      response.responses.forEach((result, index) => {
-        if (!result.success) {
-          console.error(`Failed to send to token ${validTokens[index].substring(0, 20)}...:`, result.error)
-        }
-      })
+        // Log failed sends and identify invalid tokens
+        const invalidTokens = []
+        response.responses.forEach((result, index) => {
+          if (!result.success) {
+            console.error(`Failed to send to token ${validTokens[index].substring(0, 20)}...:`, result.error)
+            if (result.error?.code === 'messaging/registration-token-not-registered') {
+              invalidTokens.push(validTokens[index])
+            }
+          }
+        })
 
-      res.json({
-        success: true,
-        messageId: response.responses?.[0]?.messageId,
-        stats: {
-          total: validTokens.length,
-          successful,
-          failed
-        },
-        targetEmails,
-        validEmails: targetEmails.filter((email, index) => tokens[index] !== null),
-        invalidEmails: targetEmails.filter((email, index) => tokens[index] === null),
-        response: response
-      })
+        res.json({
+          success: true,
+          messageId: response.responses?.[0]?.messageId,
+          stats: {
+            total: validTokens.length,
+            successful,
+            failed
+          },
+          targetEmails,
+          validEmails: targetEmails.filter((email, index) => tokens[index] !== null),
+          invalidEmails: targetEmails.filter((email, index) => tokens[index] === null),
+          invalidTokens: invalidTokens.length > 0 ? invalidTokens.map(t => t.substring(0, 20) + '...') : [],
+          response: response
+        })
+      } catch (error) {
+        console.error('Failed to send multicast (GHL):', error)
+        throw error
+      }
     }
 
   } catch (error) {
