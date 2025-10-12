@@ -225,6 +225,68 @@ app.get('/api/test-firebase', async (req, res) => {
   }
 });
 
+// FCM token validation endpoint
+app.get('/api/validate-tokens', async (req, res) => {
+  try {
+    console.log('Validating FCM tokens...');
+    
+    // Get all users with FCM tokens
+    const snapshot = await db.collection('users').get();
+    const users = snapshot.docs.map(doc => ({
+      uid: doc.id,
+      email: doc.data().email,
+      fcmToken: doc.data().fcmToken
+    })).filter(user => user.fcmToken && user.fcmToken.trim() !== '');
+    
+    console.log(`Found ${users.length} users with FCM tokens`);
+    
+    // Test each token individually
+    const validationResults = [];
+    for (const user of users) {
+      try {
+        await admin.messaging().send({
+          token: user.fcmToken,
+          notification: { title: 'Token Validation', body: 'Testing token validity' }
+        });
+        validationResults.push({
+          uid: user.uid,
+          email: user.email,
+          token: user.fcmToken.substring(0, 20) + '...',
+          status: 'valid'
+        });
+      } catch (error) {
+        validationResults.push({
+          uid: user.uid,
+          email: user.email,
+          token: user.fcmToken.substring(0, 20) + '...',
+          status: 'invalid',
+          error: error.code || 'unknown'
+        });
+      }
+    }
+    
+    const validTokens = validationResults.filter(r => r.status === 'valid');
+    const invalidTokens = validationResults.filter(r => r.status === 'invalid');
+    
+    res.json({
+      success: true,
+      total: users.length,
+      valid: validTokens.length,
+      invalid: invalidTokens.length,
+      validTokens,
+      invalidTokens
+    });
+    
+  } catch (error) {
+    console.error('Token validation failed:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Token validation failed',
+      details: error.message
+    });
+  }
+});
+
 // Send notification endpoint
 app.post('/api/send-notification', async (req, res) => {
   try {
