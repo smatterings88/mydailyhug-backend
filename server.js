@@ -154,6 +154,77 @@ app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });
 });
 
+// Firebase connectivity test endpoint
+app.get('/api/test-firebase', async (req, res) => {
+  try {
+    console.log('Testing Firebase connectivity...');
+    
+    // Test Firestore connection
+    const testDoc = await db.collection('test').doc('connectivity').get();
+    console.log('Firestore connection: OK');
+    
+    // Test Firebase Auth connection
+    try {
+      await admin.auth().listUsers(1);
+      console.log('Firebase Auth connection: OK');
+    } catch (authError) {
+      console.error('Firebase Auth error:', authError);
+      return res.status(500).json({
+        success: false,
+        error: 'Firebase Auth connection failed',
+        details: authError.message
+      });
+    }
+    
+    // Test FCM connection with a dummy token
+    try {
+      const dummyToken = 'dummy-token-for-testing';
+      await admin.messaging().send({
+        token: dummyToken,
+        notification: { title: 'Test', body: 'Test' }
+      });
+    } catch (fcmError) {
+      console.log('FCM test error (expected):', fcmError.code);
+      if (fcmError.code === 'messaging/registration-token-not-registered') {
+        console.log('FCM connection: OK (invalid token error is expected)');
+      } else if (fcmError.code === 'messaging/unknown-error' && fcmError.message.includes('404')) {
+        console.error('FCM connection: FAILED - 404 error indicates Firebase project/API issue');
+        return res.status(500).json({
+          success: false,
+          error: 'FCM API not available - check Firebase project configuration',
+          details: fcmError.message,
+          suggestion: 'Enable Firebase Cloud Messaging API in Google Cloud Console'
+        });
+      } else {
+        console.error('FCM connection: FAILED - unexpected error:', fcmError);
+        return res.status(500).json({
+          success: false,
+          error: 'FCM connection failed',
+          details: fcmError.message
+        });
+      }
+    }
+    
+    res.json({
+      success: true,
+      message: 'Firebase connectivity test passed',
+      firestore: 'OK',
+      auth: 'OK',
+      fcm: 'OK',
+      projectId: process.env.FIREBASE_PROJECT_ID
+    });
+    
+  } catch (error) {
+    console.error('Firebase connectivity test failed:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Firebase connectivity test failed',
+      details: error.message,
+      projectId: process.env.FIREBASE_PROJECT_ID
+    });
+  }
+});
+
 // Send notification endpoint
 app.post('/api/send-notification', async (req, res) => {
   try {
