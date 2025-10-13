@@ -62,6 +62,14 @@ const db = admin.firestore();
 // Helper: persist messages for targeted users in Firestore
 async function saveMessagesForUsers(targetUserIds, payload, meta = {}) {
   if (!Array.isArray(targetUserIds) || targetUserIds.length === 0) return;
+  try {
+    console.log(`Persisting user_messages for ${targetUserIds.length} users`, {
+      sampleUid: targetUserIds[0],
+      title: payload?.title,
+      targetType: meta?.targetType,
+      source: meta?.source
+    })
+  } catch (_) {}
   const createdAt = admin.firestore.FieldValue.serverTimestamp();
   const writes = [];
   for (const uid of targetUserIds) {
@@ -80,7 +88,13 @@ async function saveMessagesForUsers(targetUserIds, payload, meta = {}) {
     };
     writes.push(db.collection('user_messages').add(doc));
   }
-  await Promise.allSettled(writes);
+  const results = await Promise.allSettled(writes);
+  const failed = results.filter(r => r.status === 'rejected');
+  if (failed.length > 0) {
+    console.error('One or more user_messages writes failed', failed.map(f => f.reason?.message || f.reason))
+  } else {
+    console.log('Successfully persisted user_messages for all targeted users')
+  }
 }
 
 // Middleware
