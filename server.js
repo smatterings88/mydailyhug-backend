@@ -59,6 +59,30 @@ try {
 
 const db = admin.firestore();
 
+// Helper: persist messages for targeted users in Firestore
+async function saveMessagesForUsers(targetUserIds, payload, meta = {}) {
+  if (!Array.isArray(targetUserIds) || targetUserIds.length === 0) return;
+  const createdAt = admin.firestore.FieldValue.serverTimestamp();
+  const writes = [];
+  for (const uid of targetUserIds) {
+    const doc = {
+      uid,
+      title: payload?.title || '',
+      body: payload?.body || '',
+      data: payload?.data || {},
+      icon: payload?.icon || null,
+      badge: payload?.badge || null,
+      source: meta.source || 'backend-service',
+      targetType: meta.targetType || null,
+      creationEndpoint: meta.creationEndpoint || null,
+      dismissed: 'No',
+      createdAt
+    };
+    writes.push(db.collection('user_messages').add(doc));
+  }
+  await Promise.allSettled(writes);
+}
+
 // Middleware
 app.use(helmet());
 app.use(cors({
@@ -325,6 +349,7 @@ app.post('/api/send-notification', async (req, res) => {
     }
 
     let tokens = [];
+    let targetUserIdsForPersistence = [];
     let message;
     let response;
 
@@ -345,6 +370,8 @@ app.post('/api/send-notification', async (req, res) => {
           
           const userTokens = await Promise.all(userPromises);
           const allTokens = userTokens.filter(token => token !== null);
+          // Persist messages for the explicitly targeted users regardless of token availability
+          targetUserIdsForPersistence = [...new Set(targetUsers)];
           
           // Validate each token before adding to final list
           console.log(`Found ${allTokens.length} tokens for specific users, validating...`);
@@ -370,6 +397,8 @@ app.post('/api/send-notification', async (req, res) => {
           }
           
           const snapshot = await query.get();
+          // Persist messages for all users matching the criteria regardless of token availability
+          targetUserIdsForPersistence = snapshot.docs.map(doc => doc.id);
           const allTokens = snapshot.docs
             .map(doc => {
               const userData = doc.data();
@@ -401,6 +430,15 @@ app.post('/api/send-notification', async (req, res) => {
           success: false,
           error: 'Invalid target type'
         });
+    }
+
+    // Persist messages for targeted users (admins/users/specific users by uid). Not for 'specific' tokens-only targeting
+    if (Array.isArray(targetUserIdsForPersistence) && targetUserIdsForPersistence.length > 0) {
+      try {
+        await saveMessagesForUsers(targetUserIdsForPersistence, { title, body, data, icon, badge }, { source: 'backend-service', targetType, creationEndpoint: 'send_notification' });
+      } catch (e) {
+        console.error('Failed to persist user_messages:', e);
+      }
     }
 
     if (tokens.length === 0) {
@@ -1390,8 +1428,29 @@ app.post('/api/ghl/send-notification', authenticateApiKey, async (req, res) => {
       }
     })
 
-    const tokens = await Promise.all(tokenPromises)
-    const allTokens = tokens.filter(token => token !== null)
+    const tokenAndUidPromises = targetEmails.map(async (email) => {
+      try {
+        const userRecord = await admin.auth().getUserByEmail(email)
+        const userDoc = await db.collection('users').doc(userRecord.uid).get()
+        if (userDoc.exists) {
+          const userData = userDoc.data()
+          const token = (userData.fcmToken && userData.fcmToken.trim() !== '') ? userData.fcmToken : null
+          return { uid: userRecord.uid, token }
+        }
+        return { uid: userRecord.uid, token: null }
+      } catch (err) {
+        if (err && err.code === 'auth/user-not-found') {
+          console.warn(`User not found for email: ${email}`)
+          return null
+        }
+        throw err
+      }
+    })
+
+    const tokenAndUidResults = await Promise.all(tokenAndUidPromises)
+    const existingUsers = tokenAndUidResults.filter(r => r !== null)
+    const allTokens = existingUsers.map(r => r.token).filter(token => token !== null)
+    const allTargetUids = existingUsers.map(r => r.uid)
     
     // Validate each token before adding to final list
     console.log(`Found ${allTokens.length} tokens for email targeting, validating...`)
@@ -1408,6 +1467,15 @@ app.post('/api/ghl/send-notification', authenticateApiKey, async (req, res) => {
       }
     }
     console.log(`Validated ${validTokens.length} tokens for email targeting`)
+
+    // Persist messages for targeted users (by email) regardless of token availability
+    if (Array.isArray(allTargetUids) && allTargetUids.length > 0) {
+      try {
+        await saveMessagesForUsers(allTargetUids, { title, body, data, icon, badge }, { source: 'ghl-integration', targetType: 'email', creationEndpoint: 'ghl_send_notification' })
+      } catch (e) {
+        console.error('Failed to persist user_messages (GHL):', e)
+      }
+    }
 
     if (validTokens.length === 0) {
       return res.json({
