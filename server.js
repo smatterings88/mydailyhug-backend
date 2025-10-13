@@ -334,6 +334,7 @@ app.post('/api/send-notification', async (req, res) => {
       targetType = 'all', 
       targetUsers = [], 
       targetTokens = [],
+      targetEmails = [],
       icon, 
       badge, 
       data 
@@ -367,9 +368,102 @@ app.post('/api/send-notification', async (req, res) => {
     let message;
     let response;
 
+    // If targetEmails provided, resolve emails to UIDs and tokens first (non-GHL support)
+    if (Array.isArray(targetEmails) && targetEmails.length > 0) {
+      try {
+        console.log('Resolving targetEmails for standard endpoint:', { count: targetEmails.length })
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+        const invalidEmails = targetEmails.filter(e => !emailRegex.test(e))
+        if (invalidEmails.length > 0) {
+          return res.status(400).json({ success: false, error: `Invalid email format(s): ${invalidEmails.join(', ')}` })
+        }
+
+        const tokenAndUidPromises = targetEmails.map(async (email) => {
+          try {
+            const userRecord = await admin.auth().getUserByEmail(email)
+            const userDoc = await db.collection('users').doc(userRecord.uid).get()
+            const userData = userDoc.exists ? userDoc.data() : {}
+            const token = userData?.fcmToken && String(userData.fcmToken).trim() !== '' ? userData.fcmToken : null
+            return { uid: userRecord.uid, token }
+          } catch (err) {
+            if (err && err.code === 'auth/user-not-found') {
+              console.warn('User not found for email:', email)
+              return null
+            }
+            throw err
+          }
+        })
+
+        const tokenAndUidResults = await Promise.all(tokenAndUidPromises)
+        const existingUsers = tokenAndUidResults.filter(r => r !== null)
+        const allTokensFromEmails = existingUsers.map(r => r.token).filter(t => t !== null)
+        const allUidsFromEmails = existingUsers.map(r => r.uid)
+
+        // Persist messages for all resolved UIDs regardless of token availability
+        if (allUidsFromEmails.length > 0) {
+          console.log('Preparing to persist user_messages (standard via emails):', { count: allUidsFromEmails.length, sampleUid: allUidsFromEmails[0] })
+          try {
+            await saveMessagesForUsers(allUidsFromEmails, { title, body, data, icon, badge }, { source: 'backend-service', targetType: 'email', creationEndpoint: 'send_notification' })
+          } catch (e) {
+            console.error('Failed to persist user_messages (standard via emails):', e)
+          }
+        }
+
+        // Continue with tokens derived from emails
+        tokens = allTokensFromEmails
+      } catch (e) {
+        console.error('Error resolving emails for standard endpoint:', e?.message || e)
+      }
+    }
+
     switch (targetType) {
       case 'specific':
         tokens = targetTokens;
+        // Resolve UIDs for persistence with a two-pass strategy:
+        // 1) By fcmToken match in users collection
+        // 2) If not found, attempt to derive UID via Authentication lookups by email if provided in data (optional)
+        try {
+          const uidByToken = await Promise.all(
+            (targetTokens || []).map(async (tok) => {
+              try {
+                const snap = await db.collection('users').where('fcmToken', '==', tok).limit(1).get();
+                if (!snap.empty) return snap.docs[0].id;
+                return null;
+              } catch (e) {
+                console.error('Error resolving uid for token:', tok?.substring(0, 20) + '...', e?.message || e);
+                return null;
+              }
+            })
+          );
+
+          const uids = uidByToken.filter(Boolean);
+
+          // Optional: if request includes data.email, try to resolve via Auth
+          if ((!uids || uids.length === 0) && data && typeof data.email === 'string') {
+            try {
+              const userRecord = await admin.auth().getUserByEmail(data.email)
+              if (userRecord && userRecord.uid) uids.push(userRecord.uid)
+            } catch (err) {
+              if (err && err.code === 'auth/user-not-found') {
+                console.warn('Specific targeting: email not found in Auth:', data.email)
+              } else {
+                console.error('Specific targeting: error looking up email in Auth:', err?.message || err)
+              }
+            }
+          }
+
+          targetUserIdsForPersistence = [...new Set(uids)]
+          if (targetUserIdsForPersistence.length > 0) {
+            console.log('Resolved UIDs for specific targeting:', {
+              count: targetUserIdsForPersistence.length,
+              sampleUid: targetUserIdsForPersistence[0]
+            })
+          } else {
+            console.log('No UIDs resolved for specific targeting; persistence will be skipped')
+          }
+        } catch (e) {
+          console.error('Failed resolving UIDs for specific targeting:', e?.message || e);
+        }
         break;
 
       case 'all':
@@ -448,6 +542,11 @@ app.post('/api/send-notification', async (req, res) => {
 
     // Persist messages for targeted users (admins/users/specific users by uid). Not for 'specific' tokens-only targeting
     if (Array.isArray(targetUserIdsForPersistence) && targetUserIdsForPersistence.length > 0) {
+      console.log('Preparing to persist user_messages (standard endpoint):', {
+        count: targetUserIdsForPersistence.length,
+        sampleUid: targetUserIdsForPersistence[0],
+        targetType
+      })
       try {
         await saveMessagesForUsers(targetUserIdsForPersistence, { title, body, data, icon, badge }, { source: 'backend-service', targetType, creationEndpoint: 'send_notification' });
       } catch (e) {
@@ -1484,6 +1583,10 @@ app.post('/api/ghl/send-notification', authenticateApiKey, async (req, res) => {
 
     // Persist messages for targeted users (by email) regardless of token availability
     if (Array.isArray(allTargetUids) && allTargetUids.length > 0) {
+      console.log('Preparing to persist user_messages (GHL endpoint):', {
+        count: allTargetUids.length,
+        sampleUid: allTargetUids[0]
+      })
       try {
         await saveMessagesForUsers(allTargetUids, { title, body, data, icon, badge }, { source: 'ghl-integration', targetType: 'email', creationEndpoint: 'ghl_send_notification' })
       } catch (e) {
