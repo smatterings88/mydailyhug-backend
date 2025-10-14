@@ -1743,6 +1743,72 @@ app.post('/api/ghl/send-notification', authenticateApiKey, async (req, res) => {
   }
 })
 
+// GHL: Send notification via GET (query params): ?title=...&body=...&email=...
+app.get('/api/ghl/send-notification', authenticateApiKey, async (req, res) => {
+  try {
+    const title = req.query.title && String(req.query.title)
+    const body = req.query.body && String(req.query.body)
+    const email = req.query.email && String(req.query.email)
+
+    if (!title || !body) {
+      return res.status(400).json({ success: false, error: 'Title and body are required' })
+    }
+    if (!email) {
+      return res.status(400).json({ success: false, error: 'email query param is required' })
+    }
+
+    // Resolve email to uid and optional token
+    let uid = null
+    let token = null
+    try {
+      const userRecord = await admin.auth().getUserByEmail(email)
+      uid = userRecord.uid
+      const userDoc = await db.collection('users').doc(uid).get()
+      if (userDoc.exists) {
+        const userData = userDoc.data() || {}
+        token = userData.fcmToken && String(userData.fcmToken).trim() !== '' ? String(userData.fcmToken) : null
+      }
+    } catch (err) {
+      if (err && err.code === 'auth/user-not-found') {
+        return res.status(404).json({ success: false, error: 'User not found for provided email' })
+      }
+      throw err
+    }
+
+    // Persist message regardless of token presence
+    try {
+      await saveMessagesForUsers([uid], { title, body, data: {}, icon: null, badge: null }, { source: 'ghl-integration', targetType: 'email', creationEndpoint: 'ghl_send_notification_get' })
+    } catch (e) {
+      console.error('Failed to persist user_messages (GHL GET):', e)
+    }
+
+    if (!token) {
+      return res.json({ success: true, message: 'Message saved to Firestore; user has no FCM token', email, uid })
+    }
+
+    const message = {
+      notification: { title, body },
+      data: { timestamp: Date.now().toString(), source: 'ghl-integration' },
+      webpush: {
+        notification: { icon: '/MDH_favicon.png', badge: '/MDH_favicon.png' },
+        fcm_options: { link: process.env.FRONTEND_URL || 'http://localhost:8080' }
+      },
+      token
+    }
+
+    try {
+      const response = await admin.messaging().send(message)
+      return res.json({ success: true, messageId: response, email, uid })
+    } catch (error) {
+      console.error('Failed to send (GHL GET):', error)
+      return res.status(500).json({ success: false, error: error.message || 'Failed to send notification' })
+    }
+  } catch (error) {
+    console.error('Error in GHL GET send-notification:', error)
+    res.status(500).json({ success: false, error: error.message || 'Internal server error' })
+  }
+})
+
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
