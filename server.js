@@ -1661,8 +1661,8 @@ app.post('/api/ghl/send-notification', authenticateApiKey, async (req, res) => {
               failed: 1
             },
             targetEmails,
-            validEmails: targetEmails.filter((email, index) => tokens[index] !== null),
-            invalidEmails: targetEmails.filter((email, index) => tokens[index] === null)
+            validEmails: targetEmails.filter((email, index) => validTokens[index] !== null),
+            invalidEmails: targetEmails.filter((email, index) => validTokens[index] === null)
           })
         } else {
           throw error
@@ -1709,8 +1709,8 @@ app.post('/api/ghl/send-notification', authenticateApiKey, async (req, res) => {
             tokensFound: validTokens.length,
             projectId: process.env.FIREBASE_PROJECT_ID,
             targetEmails,
-            validEmails: targetEmails.filter((email, index) => tokens[index] !== null),
-            invalidEmails: targetEmails.filter((email, index) => tokens[index] === null)
+            validEmails: targetEmails.filter((email, index) => validTokens[index] !== null),
+            invalidEmails: targetEmails.filter((email, index) => validTokens[index] === null)
           })
         }
         
