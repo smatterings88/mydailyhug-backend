@@ -625,6 +625,51 @@ Response
 }
 ```
 
+### GHL: Send Notification via GET (query params)
+
+- Method/Path: `GET /api/ghl/send-notification`
+- Auth: `X-API-Key`
+- Description: Sends a notification using query parameters. Accepts `title`, `body`, and `email`. Also persists the message to Firestore (`user_messages`) even if the user has no FCM token. If a token exists, a push notification is sent.
+
+Headers
+- `X-API-Key: <GHL_API_KEY>`
+
+Query parameters
+- `title` (required): Notification title
+- `body` (required): Notification body
+- `email` (required): Target user's email address
+
+Example
+```bash
+curl "https://mydailyhugbackend.vercel.app/api/ghl/send-notification?title=Hello&body=World&email=user@example.com" \
+  -H "X-API-Key: <GHL_API_KEY>"
+```
+
+Responses
+- If token exists and send succeeds:
+```json
+{
+  "success": true,
+  "messageId": "projects/.../messages/...",
+  "email": "user@example.com",
+  "uid": "firebase-uid"
+}
+```
+- If no token but message persisted:
+```json
+{
+  "success": true,
+  "message": "Message saved to Firestore; user has no FCM token",
+  "email": "user@example.com",
+  "uid": "firebase-uid"
+}
+```
+
+Error cases
+- `400 Title and body are required`
+- `400 email query param is required`
+- `404 User not found for provided email`
+
 Error cases:
 - Missing `targetEmails` array: `400 targetEmails array is required and must not be empty`
 - Invalid email format: `400 Invalid email format(s): invalid@email`
