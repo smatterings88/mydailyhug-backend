@@ -1646,8 +1646,8 @@ app.post('/api/ghl/send-notification', authenticateApiKey, async (req, res) => {
             failed: 0
           },
           targetEmails,
-          validEmails: targetEmails.filter((email, index) => tokens[index] !== null),
-          invalidEmails: targetEmails.filter((email, index) => tokens[index] === null)
+          validEmails: targetEmails.filter((email, index) => validTokens[index] !== null),
+          invalidEmails: targetEmails.filter((email, index) => validTokens[index] === null)
         })
       } catch (error) {
         console.error('Failed to send to single token (GHL):', error)
@@ -1692,8 +1692,8 @@ app.post('/api/ghl/send-notification', authenticateApiKey, async (req, res) => {
             failed
           },
           targetEmails,
-          validEmails: targetEmails.filter((email, index) => tokens[index] !== null),
-          invalidEmails: targetEmails.filter((email, index) => tokens[index] === null),
+          validEmails: targetEmails.filter((email, index) => validTokens[index] !== null),
+          invalidEmails: targetEmails.filter((email, index) => validTokens[index] === null),
           message: `${successful} notifications sent successfully`
         })
       } catch (error) {
