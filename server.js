@@ -1646,8 +1646,16 @@ app.post('/api/ghl/send-notification', authenticateApiKey, async (req, res) => {
             failed: 0
           },
           targetEmails,
-          validEmails: targetEmails.filter((email, index) => validTokens[index] !== null),
-          invalidEmails: targetEmails.filter((email, index) => validTokens[index] === null)
+          validEmails: targetEmails.filter(email => {
+            const userIndex = targetEmails.indexOf(email);
+            const userResult = tokenAndUidResults[userIndex];
+            return userResult && userResult.token && validTokens.includes(userResult.token);
+          }),
+          invalidEmails: targetEmails.filter(email => {
+            const userIndex = targetEmails.indexOf(email);
+            const userResult = tokenAndUidResults[userIndex];
+            return !userResult || !userResult.token || !validTokens.includes(userResult.token);
+          })
         })
       } catch (error) {
         console.error('Failed to send to single token (GHL):', error)
@@ -1692,8 +1700,16 @@ app.post('/api/ghl/send-notification', authenticateApiKey, async (req, res) => {
             failed
           },
           targetEmails,
-          validEmails: targetEmails.filter((email, index) => validTokens[index] !== null),
-          invalidEmails: targetEmails.filter((email, index) => validTokens[index] === null),
+          validEmails: targetEmails.filter(email => {
+            const userIndex = targetEmails.indexOf(email);
+            const userResult = tokenAndUidResults[userIndex];
+            return userResult && userResult.token && validTokens.includes(userResult.token);
+          }),
+          invalidEmails: targetEmails.filter(email => {
+            const userIndex = targetEmails.indexOf(email);
+            const userResult = tokenAndUidResults[userIndex];
+            return !userResult || !userResult.token || !validTokens.includes(userResult.token);
+          }),
           message: `${successful} notifications sent successfully`
         })
       } catch (error) {
