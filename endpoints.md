@@ -659,6 +659,20 @@ Error cases:
 
 ---
 
+## GHL Integration Guide
+
+For comprehensive GoHighLevel (GHL) integration documentation with detailed examples, workflows, and best practices, see the [GHL User Manual](./GHL_User_Manual.md).
+
+The GHL User Manual includes:
+- Complete authentication setup
+- Step-by-step endpoint usage with real examples
+- Error handling strategies
+- Integration workflow examples
+- Best practices for production use
+- Troubleshooting guide
+
+---
+
 ## Security Notes
 
 - Admin endpoints require a valid Firebase ID token from a user whose Firestore document has `userType: "admin"`.
