@@ -1,10 +1,10 @@
 # My Daily Hug Backend - API Endpoints
 
-This document provides complete, copy/pasteable instructions for every endpoint in the backend. Examples use curl. Replace placeholders like <your-backend-url>, <admin-id-token>, and <GHL_API_KEY>.
+This document provides complete, copy/pasteable instructions for every endpoint in the backend. Examples use curl. Replace placeholders like <admin-id-token> and <GHL_API_KEY>. Use the production URL: `https://mydailyhugbackend.vercel.app`
 
 - Base URL examples:
   - Local: `http://localhost:3001`
-  - Prod (example): `https://your-backend-url.vercel.app`
+  - Prod: `https://mydailyhugbackend.vercel.app`
 
 - Authentication methods:
   - Admin endpoints: `Authorization: Bearer <admin-id-token>` where the token belongs to a Firebase Auth user whose Firestore document at `users/{uid}` has `userType: "admin"`.
@@ -23,7 +23,7 @@ This document provides complete, copy/pasteable instructions for every endpoint 
 
 Example
 ```bash
-curl -s <your-backend-url>/health
+curl -s https://mydailyhugbackend.vercel.app/health
 ```
 
 ---
@@ -62,7 +62,7 @@ Notes
 
 Example (All Users)
 ```bash
-curl -X POST <your-backend-url>/api/send-notification \
+curl -X POST https://mydailyhugbackend.vercel.app/api/send-notification \
   -H "Content-Type: application/json" \
   -d '{
     "title":"Hello",
@@ -73,7 +73,7 @@ curl -X POST <your-backend-url>/api/send-notification \
 
 Example (Specific Tokens)
 ```bash
-curl -X POST <your-backend-url>/api/send-notification \
+curl -X POST https://mydailyhugbackend.vercel.app/api/send-notification \
   -H "Content-Type: application/json" \
   -d '{
     "title":"Hello",
@@ -108,7 +108,7 @@ Response
 
 Example
 ```bash
-curl -s <your-backend-url>/api/notification-stats
+curl -s https://mydailyhugbackend.vercel.app/api/notification-stats
 ```
 
 Response
@@ -131,7 +131,7 @@ Response
 
 Example
 ```bash
-curl -s <your-backend-url>/api/users
+curl -s https://mydailyhugbackend.vercel.app/api/users
 ```
 
 Response (truncated)
@@ -177,7 +177,7 @@ Request body
 
 Example
 ```bash
-curl -X POST <your-backend-url>/api/grant-admin \
+curl -X POST https://mydailyhugbackend.vercel.app/api/grant-admin \
   -H "Authorization: Bearer <admin-id-token>" \
   -H "Content-Type: application/json" \
   -d '{"email":"admin@example.com"}'
@@ -207,7 +207,7 @@ Request body
 
 Example
 ```bash
-curl -X POST <your-backend-url>/api/create-user \
+curl -X POST https://mydailyhugbackend.vercel.app/api/create-user \
   -H "Authorization: Bearer <admin-id-token>" \
   -H "Content-Type: application/json" \
   -d '{"email":"user@example.com"}'
@@ -231,7 +231,7 @@ Request body
 
 Example
 ```bash
-curl -X POST <your-backend-url>/api/remove-password-change-requirement \
+curl -X POST https://mydailyhugbackend.vercel.app/api/remove-password-change-requirement \
   -H "Content-Type: application/json" \
   -d '{"uid":"<firebase-uid>"}'
 ```
@@ -259,7 +259,7 @@ Request body
 
 Example
 ```bash
-curl -X POST <your-backend-url>/api/make-inactive \
+curl -X POST https://mydailyhugbackend.vercel.app/api/make-inactive \
   -H "Authorization: Bearer <admin-id-token>" \
   -H "Content-Type: application/json" \
   -d '{"email":"user@example.com"}'
@@ -288,7 +288,7 @@ Request body
 
 Example
 ```bash
-curl -X POST <your-backend-url>/api/make-active \
+curl -X POST https://mydailyhugbackend.vercel.app/api/make-active \
   -H "Authorization: Bearer <admin-id-token>" \
   -H "Content-Type: application/json" \
   -d '{"uid":"<firebase-uid>"}'
@@ -318,7 +318,7 @@ Request body
 
 Example
 ```bash
-curl -X POST <your-backend-url>/api/ghl/create-user \
+curl -X POST https://mydailyhugbackend.vercel.app/api/ghl/create-user \
   -H "X-API-Key: <GHL_API_KEY>" \
   -H "Content-Type: application/json" \
   -d '{"email":"user@example.com"}'
@@ -348,7 +348,7 @@ Request body
 
 Example
 ```bash
-curl -X POST <your-backend-url>/api/ghl/create-trial-user \
+curl -X POST https://mydailyhugbackend.vercel.app/api/ghl/create-trial-user \
   -H "X-API-Key: <GHL_API_KEY>" \
   -H "Content-Type: application/json" \
   -d '{"email":"user@example.com"}'
@@ -377,7 +377,7 @@ Request body
 
 Example
 ```bash
-curl -X POST <your-backend-url>/api/ghl/make-inactive \
+curl -X POST https://mydailyhugbackend.vercel.app/api/ghl/make-inactive \
   -H "X-API-Key: <GHL_API_KEY>" \
   -H "Content-Type: application/json" \
   -d '{"uid":"<firebase-uid>"}'
@@ -406,7 +406,7 @@ Request body
 
 Example
 ```bash
-curl -X POST <your-backend-url>/api/ghl/make-active \
+curl -X POST https://mydailyhugbackend.vercel.app/api/ghl/make-active \
   -H "X-API-Key: <GHL_API_KEY>" \
   -H "Content-Type: application/json" \
   -d '{"email":"user@example.com"}'
@@ -431,7 +431,7 @@ Request body
 
 Example
 ```bash
-curl -X POST <your-backend-url>/api/make-triple-hugger \
+curl -X POST https://mydailyhugbackend.vercel.app/api/make-triple-hugger \
   -H "Authorization: Bearer <admin-id-token>" \
   -H "Content-Type: application/json" \
   -d '{"email":"user@example.com"}'
@@ -467,7 +467,7 @@ Request body
 
 Example
 ```bash
-curl -X POST <your-backend-url>/api/ghl/make-triple-hugger \
+curl -X POST https://mydailyhugbackend.vercel.app/api/ghl/make-triple-hugger \
   -H "X-API-Key: <GHL_API_KEY>" \
   -H "Content-Type: application/json" \
   -d '{"email":"user@example.com"}'
@@ -503,7 +503,7 @@ Request body
 
 Example
 ```bash
-curl -X POST <your-backend-url>/api/make-double-hugger \
+curl -X POST https://mydailyhugbackend.vercel.app/api/make-double-hugger \
   -H "Authorization: Bearer <admin-id-token>" \
   -H "Content-Type: application/json" \
   -d '{"email":"user@example.com"}'
@@ -539,7 +539,7 @@ Request body
 
 Example
 ```bash
-curl -X POST <your-backend-url>/api/ghl/make-double-hugger \
+curl -X POST https://mydailyhugbackend.vercel.app/api/ghl/make-double-hugger \
   -H "X-API-Key: <GHL_API_KEY>" \
   -H "Content-Type: application/json" \
   -d '{"email":"user@example.com"}'
@@ -593,7 +593,7 @@ Notes
 
 Example
 ```bash
-curl -X POST <your-backend-url>/api/ghl/send-notification \
+curl -X POST https://mydailyhugbackend.vercel.app/api/ghl/send-notification \
   -H "X-API-Key: <GHL_API_KEY>" \
   -H "Content-Type: application/json" \
   -d '{
