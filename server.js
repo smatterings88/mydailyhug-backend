@@ -111,6 +111,9 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 app.use(express.json({ limit: '10mb' }));
+// Accept urlencoded and text bodies to improve HTTP/1.x compatibility
+app.use(express.urlencoded({ extended: true }));
+app.use(express.text({ type: ['text/*', 'application/json'], limit: '10mb' }));
 
 // Rate limiting
 const limiter = rateLimit({
@@ -1487,8 +1490,13 @@ app.post('/api/ghl/make-double-hugger', authenticateApiKey, async (req, res) => 
 // GHL: Send notification to specific users by email (API key auth)
 app.post('/api/ghl/send-notification', authenticateApiKey, async (req, res) => {
   try {
+    // Normalize body: handle string bodies (HTTP/1.x proxies), urlencoded, or JSON
+    let normalized = req.body
+    if (typeof normalized === 'string') {
+      try { normalized = JSON.parse(normalized) } catch { normalized = {} }
+    }
     // Graceful handling for proxies that drop JSON body on HTTP/1.x
-    const bodyPayload = (req.body && Object.keys(req.body || {}).length > 0) ? req.body : null
+    const bodyPayload = (normalized && Object.keys(normalized || {}).length > 0) ? normalized : null
     const title = bodyPayload?.title || req.query.title
     const body = bodyPayload?.body || req.query.body
     const targetEmails = bodyPayload?.targetEmails || (req.query.email ? [String(req.query.email)] : [])
