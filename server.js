@@ -1487,14 +1487,14 @@ app.post('/api/ghl/make-double-hugger', authenticateApiKey, async (req, res) => 
 // GHL: Send notification to specific users by email (API key auth)
 app.post('/api/ghl/send-notification', authenticateApiKey, async (req, res) => {
   try {
-    const { 
-      title, 
-      body, 
-      targetEmails = [],
-      icon, 
-      badge, 
-      data 
-    } = req.body
+    // Graceful handling for proxies that drop JSON body on HTTP/1.x
+    const bodyPayload = (req.body && Object.keys(req.body || {}).length > 0) ? req.body : null
+    const title = bodyPayload?.title || req.query.title
+    const body = bodyPayload?.body || req.query.body
+    const targetEmails = bodyPayload?.targetEmails || (req.query.email ? [String(req.query.email)] : [])
+    const icon = bodyPayload?.icon
+    const badge = bodyPayload?.badge
+    const data = bodyPayload?.data
 
     // Validation
     if (!title || !body) {
