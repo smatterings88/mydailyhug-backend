@@ -59,6 +59,40 @@ try {
 
 const db = admin.firestore();
 
+// Helper function for HTTP/1.x query parameter parsing
+function parseQueryParams(req, paramName) {
+  // First try standard req.query
+  if (req.query && req.query[paramName]) {
+    return req.query[paramName]
+  }
+  
+  // Manual parsing fallback for HTTP/1.x compatibility
+  if (req.url && req.url.includes(`${paramName}=`)) {
+    const urlParams = new URLSearchParams(req.url.split('?')[1] || '')
+    return urlParams.get(paramName)
+  }
+  
+  return null
+}
+
+// Helper function to normalize request body and extract parameters with query fallback
+function normalizeRequestBody(req, paramNames = []) {
+  // Normalize body: handle string bodies (HTTP/1.x proxies), urlencoded, or JSON
+  let normalized = req.body
+  if (typeof normalized === 'string') {
+    try { normalized = JSON.parse(normalized) } catch { normalized = {} }
+  }
+  // Graceful handling for proxies that drop JSON body on HTTP/1.x
+  const bodyPayload = (normalized && Object.keys(normalized || {}).length > 0) ? normalized : null
+  
+  const result = {}
+  for (const paramName of paramNames) {
+    result[paramName] = bodyPayload?.[paramName] || parseQueryParams(req, paramName)
+  }
+  
+  return result
+}
+
 // Helper: persist messages for targeted users in Firestore
 async function saveMessagesForUsers(targetUserIds, payload, meta = {}) {
   if (!Array.isArray(targetUserIds) || targetUserIds.length === 0) return;
@@ -1024,17 +1058,7 @@ app.post('/api/ghl/create-user', authenticateApiKey, async (req, res) => {
   try {
     console.log('GHL create user request received:', { body: req.body })
     
-    // Normalize body: handle string bodies (HTTP/1.x proxies), urlencoded, or JSON
-    let normalized = req.body
-    if (typeof normalized === 'string') {
-      try { normalized = JSON.parse(normalized) } catch { normalized = {} }
-    }
-    // Graceful handling for proxies that drop JSON body on HTTP/1.x
-    const bodyPayload = (normalized && Object.keys(normalized || {}).length > 0) ? normalized : null
-    const email = bodyPayload?.email || req.query.email
-    const firstName = bodyPayload?.firstName || req.query.firstName || ''
-    const lastName = bodyPayload?.lastName || req.query.lastName || ''
-    const tempPassword = bodyPayload?.tempPassword || req.query.tempPassword
+    const { email, firstName = '', lastName = '', tempPassword } = normalizeRequestBody(req, ['email', 'firstName', 'lastName', 'tempPassword'])
 
     // Validate email format
     if (!email || typeof email !== 'string') {
@@ -1107,17 +1131,7 @@ app.post('/api/ghl/create-trial-user', authenticateApiKey, async (req, res) => {
   try {
     console.log('GHL create trial user request received:', { body: req.body })
     
-    // Normalize body: handle string bodies (HTTP/1.x proxies), urlencoded, or JSON
-    let normalized = req.body
-    if (typeof normalized === 'string') {
-      try { normalized = JSON.parse(normalized) } catch { normalized = {} }
-    }
-    // Graceful handling for proxies that drop JSON body on HTTP/1.x
-    const bodyPayload = (normalized && Object.keys(normalized || {}).length > 0) ? normalized : null
-    const email = bodyPayload?.email || req.query.email
-    const firstName = bodyPayload?.firstName || req.query.firstName || ''
-    const lastName = bodyPayload?.lastName || req.query.lastName || ''
-    const tempPassword = bodyPayload?.tempPassword || req.query.tempPassword
+    const { email, firstName = '', lastName = '', tempPassword } = normalizeRequestBody(req, ['email', 'firstName', 'lastName', 'tempPassword'])
 
     // Validate email format
     if (!email || typeof email !== 'string') {
@@ -1222,15 +1236,7 @@ app.post('/api/make-inactive', authenticateAdmin, async (req, res) => {
 // Make user inactive (GHL via API key)
 app.post('/api/ghl/make-inactive', authenticateApiKey, async (req, res) => {
   try {
-    // Normalize body: handle string bodies (HTTP/1.x proxies), urlencoded, or JSON
-    let normalized = req.body
-    if (typeof normalized === 'string') {
-      try { normalized = JSON.parse(normalized) } catch { normalized = {} }
-    }
-    // Graceful handling for proxies that drop JSON body on HTTP/1.x
-    const bodyPayload = (normalized && Object.keys(normalized || {}).length > 0) ? normalized : null
-    const uid = bodyPayload?.uid || req.query.uid
-    const email = bodyPayload?.email || req.query.email
+    const { uid, email } = normalizeRequestBody(req, ['uid', 'email'])
 
     if (!uid && !email) {
       return res.status(400).json({ success: false, error: 'uid or email is required' })
@@ -1298,15 +1304,7 @@ app.post('/api/make-active', authenticateAdmin, async (req, res) => {
 // Make user active (GHL via API key)
 app.post('/api/ghl/make-active', authenticateApiKey, async (req, res) => {
   try {
-    // Normalize body: handle string bodies (HTTP/1.x proxies), urlencoded, or JSON
-    let normalized = req.body
-    if (typeof normalized === 'string') {
-      try { normalized = JSON.parse(normalized) } catch { normalized = {} }
-    }
-    // Graceful handling for proxies that drop JSON body on HTTP/1.x
-    const bodyPayload = (normalized && Object.keys(normalized || {}).length > 0) ? normalized : null
-    const uid = bodyPayload?.uid || req.query.uid
-    const email = bodyPayload?.email || req.query.email
+    const { uid, email } = normalizeRequestBody(req, ['uid', 'email'])
 
     if (!uid && !email) {
       return res.status(400).json({ success: false, error: 'uid or email is required' })
@@ -1387,47 +1385,22 @@ app.post('/api/make-triple-hugger', authenticateAdmin, async (req, res) => {
 // GHL: Make user a triple hugger (API key auth)
 app.post('/api/ghl/make-triple-hugger', authenticateApiKey, async (req, res) => {
   try {
-    // Normalize body: handle string bodies (HTTP/1.x proxies), urlencoded, or JSON
-    let normalized = req.body
-    if (typeof normalized === 'string') {
-      try { normalized = JSON.parse(normalized) } catch { normalized = {} }
-    }
-    // Graceful handling for proxies that drop JSON body on HTTP/1.x
-    const bodyPayload = (normalized && Object.keys(normalized || {}).length > 0) ? normalized : null
-    const email = bodyPayload?.email || req.query.email
-    
-    // Manual query parsing fallback for HTTP/1.x compatibility
-    let manualQueryEmail = null
-    if (!email && req.url && req.url.includes('email=')) {
-      const urlParams = new URLSearchParams(req.url.split('?')[1] || '')
-      manualQueryEmail = urlParams.get('email')
-    }
-    const finalEmail = email || manualQueryEmail
-    
-    console.log('GHL make-triple-hugger debug:', {
-      bodyPayload: bodyPayload,
-      queryEmail: req.query.email,
-      manualQueryEmail: manualQueryEmail,
-      finalEmail: finalEmail,
-      bodyKeys: Object.keys(req.body || {}),
-      queryKeys: Object.keys(req.query || {}),
-      url: req.url
-    })
+    const { email } = normalizeRequestBody(req, ['email'])
 
-    if (!finalEmail || typeof finalEmail !== 'string') {
+    if (!email || typeof email !== 'string') {
       return res.status(400).json({ success: false, error: 'Valid email is required' })
     }
 
     // Basic email format validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    if (!emailRegex.test(finalEmail)) {
+    if (!emailRegex.test(email)) {
       return res.status(400).json({ success: false, error: 'Invalid email format' })
     }
 
     // Find user by email
     let userRecord
     try {
-      userRecord = await admin.auth().getUserByEmail(finalEmail)
+      userRecord = await admin.auth().getUserByEmail(email)
     } catch (err) {
       if (err && err.code === 'auth/user-not-found') {
         return res.status(404).json({ success: false, error: 'User not found for provided email' })
@@ -1446,7 +1419,7 @@ app.post('/api/ghl/make-triple-hugger', authenticateApiKey, async (req, res) => 
     res.json({ 
       success: true, 
       uid, 
-      email: finalEmail, 
+      email, 
       is_triple_hugger: 'Yes',
       message: 'User marked as triple hugger (GHL)'
     })
@@ -1506,14 +1479,7 @@ app.post('/api/make-double-hugger', authenticateAdmin, async (req, res) => {
 // GHL: Make user a double hugger (API key auth)
 app.post('/api/ghl/make-double-hugger', authenticateApiKey, async (req, res) => {
   try {
-    // Normalize body: handle string bodies (HTTP/1.x proxies), urlencoded, or JSON
-    let normalized = req.body
-    if (typeof normalized === 'string') {
-      try { normalized = JSON.parse(normalized) } catch { normalized = {} }
-    }
-    // Graceful handling for proxies that drop JSON body on HTTP/1.x
-    const bodyPayload = (normalized && Object.keys(normalized || {}).length > 0) ? normalized : null
-    const email = bodyPayload?.email || req.query.email
+    const { email } = normalizeRequestBody(req, ['email'])
 
     if (!email || typeof email !== 'string') {
       return res.status(400).json({ success: false, error: 'Valid email is required' })
@@ -1560,19 +1526,12 @@ app.post('/api/ghl/make-double-hugger', authenticateApiKey, async (req, res) => 
 // GHL: Send notification to specific users by email (API key auth)
 app.post('/api/ghl/send-notification', authenticateApiKey, async (req, res) => {
   try {
-    // Normalize body: handle string bodies (HTTP/1.x proxies), urlencoded, or JSON
-    let normalized = req.body
-    if (typeof normalized === 'string') {
-      try { normalized = JSON.parse(normalized) } catch { normalized = {} }
+    let { title, body, targetEmails = [], icon, badge, data } = normalizeRequestBody(req, ['title', 'body', 'targetEmails', 'icon', 'badge', 'data'])
+    
+    // Handle single email from query parameter
+    if ((!targetEmails || targetEmails.length === 0) && req.query.email) {
+      targetEmails = [req.query.email]
     }
-    // Graceful handling for proxies that drop JSON body on HTTP/1.x
-    const bodyPayload = (normalized && Object.keys(normalized || {}).length > 0) ? normalized : null
-    const title = bodyPayload?.title || req.query.title
-    const body = bodyPayload?.body || req.query.body
-    const targetEmails = bodyPayload?.targetEmails || (req.query.email ? [String(req.query.email)] : [])
-    const icon = bodyPayload?.icon
-    const badge = bodyPayload?.badge
-    const data = bodyPayload?.data
 
     // Validation
     if (!title || !body) {
