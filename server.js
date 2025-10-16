@@ -1023,7 +1023,18 @@ app.get('/api/users', async (req, res) => {
 app.post('/api/ghl/create-user', authenticateApiKey, async (req, res) => {
   try {
     console.log('GHL create user request received:', { body: req.body })
-    const { email, firstName = '', lastName = '', tempPassword } = req.body || {}
+    
+    // Normalize body: handle string bodies (HTTP/1.x proxies), urlencoded, or JSON
+    let normalized = req.body
+    if (typeof normalized === 'string') {
+      try { normalized = JSON.parse(normalized) } catch { normalized = {} }
+    }
+    // Graceful handling for proxies that drop JSON body on HTTP/1.x
+    const bodyPayload = (normalized && Object.keys(normalized || {}).length > 0) ? normalized : null
+    const email = bodyPayload?.email || req.query.email
+    const firstName = bodyPayload?.firstName || req.query.firstName || ''
+    const lastName = bodyPayload?.lastName || req.query.lastName || ''
+    const tempPassword = bodyPayload?.tempPassword || req.query.tempPassword
 
     // Validate email format
     if (!email || typeof email !== 'string') {
@@ -1095,7 +1106,18 @@ app.post('/api/ghl/create-user', authenticateApiKey, async (req, res) => {
 app.post('/api/ghl/create-trial-user', authenticateApiKey, async (req, res) => {
   try {
     console.log('GHL create trial user request received:', { body: req.body })
-    const { email, firstName = '', lastName = '', tempPassword } = req.body || {}
+    
+    // Normalize body: handle string bodies (HTTP/1.x proxies), urlencoded, or JSON
+    let normalized = req.body
+    if (typeof normalized === 'string') {
+      try { normalized = JSON.parse(normalized) } catch { normalized = {} }
+    }
+    // Graceful handling for proxies that drop JSON body on HTTP/1.x
+    const bodyPayload = (normalized && Object.keys(normalized || {}).length > 0) ? normalized : null
+    const email = bodyPayload?.email || req.query.email
+    const firstName = bodyPayload?.firstName || req.query.firstName || ''
+    const lastName = bodyPayload?.lastName || req.query.lastName || ''
+    const tempPassword = bodyPayload?.tempPassword || req.query.tempPassword
 
     // Validate email format
     if (!email || typeof email !== 'string') {
@@ -1200,7 +1222,15 @@ app.post('/api/make-inactive', authenticateAdmin, async (req, res) => {
 // Make user inactive (GHL via API key)
 app.post('/api/ghl/make-inactive', authenticateApiKey, async (req, res) => {
   try {
-    const { uid, email } = req.body || {}
+    // Normalize body: handle string bodies (HTTP/1.x proxies), urlencoded, or JSON
+    let normalized = req.body
+    if (typeof normalized === 'string') {
+      try { normalized = JSON.parse(normalized) } catch { normalized = {} }
+    }
+    // Graceful handling for proxies that drop JSON body on HTTP/1.x
+    const bodyPayload = (normalized && Object.keys(normalized || {}).length > 0) ? normalized : null
+    const uid = bodyPayload?.uid || req.query.uid
+    const email = bodyPayload?.email || req.query.email
 
     if (!uid && !email) {
       return res.status(400).json({ success: false, error: 'uid or email is required' })
@@ -1268,7 +1298,15 @@ app.post('/api/make-active', authenticateAdmin, async (req, res) => {
 // Make user active (GHL via API key)
 app.post('/api/ghl/make-active', authenticateApiKey, async (req, res) => {
   try {
-    const { uid, email } = req.body || {}
+    // Normalize body: handle string bodies (HTTP/1.x proxies), urlencoded, or JSON
+    let normalized = req.body
+    if (typeof normalized === 'string') {
+      try { normalized = JSON.parse(normalized) } catch { normalized = {} }
+    }
+    // Graceful handling for proxies that drop JSON body on HTTP/1.x
+    const bodyPayload = (normalized && Object.keys(normalized || {}).length > 0) ? normalized : null
+    const uid = bodyPayload?.uid || req.query.uid
+    const email = bodyPayload?.email || req.query.email
 
     if (!uid && !email) {
       return res.status(400).json({ success: false, error: 'uid or email is required' })
@@ -1349,7 +1387,22 @@ app.post('/api/make-triple-hugger', authenticateAdmin, async (req, res) => {
 // GHL: Make user a triple hugger (API key auth)
 app.post('/api/ghl/make-triple-hugger', authenticateApiKey, async (req, res) => {
   try {
-    const { email } = req.body || {}
+    // Normalize body: handle string bodies (HTTP/1.x proxies), urlencoded, or JSON
+    let normalized = req.body
+    if (typeof normalized === 'string') {
+      try { normalized = JSON.parse(normalized) } catch { normalized = {} }
+    }
+    // Graceful handling for proxies that drop JSON body on HTTP/1.x
+    const bodyPayload = (normalized && Object.keys(normalized || {}).length > 0) ? normalized : null
+    const email = bodyPayload?.email || req.query.email
+    
+    console.log('GHL make-triple-hugger debug:', {
+      bodyPayload: bodyPayload,
+      queryEmail: req.query.email,
+      finalEmail: email,
+      bodyKeys: Object.keys(req.body || {}),
+      queryKeys: Object.keys(req.query || {})
+    })
 
     if (!email || typeof email !== 'string') {
       return res.status(400).json({ success: false, error: 'Valid email is required' })
@@ -1443,7 +1496,14 @@ app.post('/api/make-double-hugger', authenticateAdmin, async (req, res) => {
 // GHL: Make user a double hugger (API key auth)
 app.post('/api/ghl/make-double-hugger', authenticateApiKey, async (req, res) => {
   try {
-    const { email } = req.body || {}
+    // Normalize body: handle string bodies (HTTP/1.x proxies), urlencoded, or JSON
+    let normalized = req.body
+    if (typeof normalized === 'string') {
+      try { normalized = JSON.parse(normalized) } catch { normalized = {} }
+    }
+    // Graceful handling for proxies that drop JSON body on HTTP/1.x
+    const bodyPayload = (normalized && Object.keys(normalized || {}).length > 0) ? normalized : null
+    const email = bodyPayload?.email || req.query.email
 
     if (!email || typeof email !== 'string') {
       return res.status(400).json({ success: false, error: 'Valid email is required' })
