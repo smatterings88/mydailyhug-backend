@@ -1396,28 +1396,38 @@ app.post('/api/ghl/make-triple-hugger', authenticateApiKey, async (req, res) => 
     const bodyPayload = (normalized && Object.keys(normalized || {}).length > 0) ? normalized : null
     const email = bodyPayload?.email || req.query.email
     
+    // Manual query parsing fallback for HTTP/1.x compatibility
+    let manualQueryEmail = null
+    if (!email && req.url && req.url.includes('email=')) {
+      const urlParams = new URLSearchParams(req.url.split('?')[1] || '')
+      manualQueryEmail = urlParams.get('email')
+    }
+    const finalEmail = email || manualQueryEmail
+    
     console.log('GHL make-triple-hugger debug:', {
       bodyPayload: bodyPayload,
       queryEmail: req.query.email,
-      finalEmail: email,
+      manualQueryEmail: manualQueryEmail,
+      finalEmail: finalEmail,
       bodyKeys: Object.keys(req.body || {}),
-      queryKeys: Object.keys(req.query || {})
+      queryKeys: Object.keys(req.query || {}),
+      url: req.url
     })
 
-    if (!email || typeof email !== 'string') {
+    if (!finalEmail || typeof finalEmail !== 'string') {
       return res.status(400).json({ success: false, error: 'Valid email is required' })
     }
 
     // Basic email format validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    if (!emailRegex.test(email)) {
+    if (!emailRegex.test(finalEmail)) {
       return res.status(400).json({ success: false, error: 'Invalid email format' })
     }
 
     // Find user by email
     let userRecord
     try {
-      userRecord = await admin.auth().getUserByEmail(email)
+      userRecord = await admin.auth().getUserByEmail(finalEmail)
     } catch (err) {
       if (err && err.code === 'auth/user-not-found') {
         return res.status(404).json({ success: false, error: 'User not found for provided email' })
@@ -1436,7 +1446,7 @@ app.post('/api/ghl/make-triple-hugger', authenticateApiKey, async (req, res) => 
     res.json({ 
       success: true, 
       uid, 
-      email, 
+      email: finalEmail, 
       is_triple_hugger: 'Yes',
       message: 'User marked as triple hugger (GHL)'
     })
