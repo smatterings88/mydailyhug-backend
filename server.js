@@ -1523,6 +1523,86 @@ app.post('/api/ghl/make-double-hugger', authenticateApiKey, async (req, res) => 
   }
 })
 
+// Delete user (admin only)
+app.post('/api/delete-user', authenticateAdmin, async (req, res) => {
+  try {
+    const { uid, email } = req.body || {}
+
+    if (!uid && !email) {
+      return res.status(400).json({ success: false, error: 'uid or email is required' })
+    }
+
+    let targetUid = uid
+    if (!targetUid && email) {
+      try {
+        const userRecord = await admin.auth().getUserByEmail(email)
+        targetUid = userRecord.uid
+      } catch (err) {
+        if (err && err.code === 'auth/user-not-found') {
+          return res.status(404).json({ success: false, error: 'User not found for provided email' })
+        }
+        throw err
+      }
+    }
+
+    // Delete from Firebase Authentication
+    await admin.auth().deleteUser(targetUid)
+    
+    // Delete from Firestore
+    await db.collection('users').doc(targetUid).delete()
+
+    res.json({ 
+      success: true, 
+      uid: targetUid, 
+      message: 'User deleted successfully',
+      deletedBy: req.adminDisplayName || 'Admin'
+    })
+  } catch (error) {
+    console.error('Error deleting user (admin):', error)
+    res.status(500).json({ success: false, error: error?.message || 'Internal server error' })
+  }
+})
+
+// Delete user (GHL via API key)
+app.post('/api/ghl/delete-user', authenticateApiKey, async (req, res) => {
+  try {
+    const { uid, email } = normalizeRequestBody(req, ['uid', 'email'])
+
+    if (!uid && !email) {
+      return res.status(400).json({ success: false, error: 'uid or email is required' })
+    }
+
+    let targetUid = uid
+    if (!targetUid && email) {
+      try {
+        const userRecord = await admin.auth().getUserByEmail(email)
+        targetUid = userRecord.uid
+      } catch (err) {
+        if (err && err.code === 'auth/user-not-found') {
+          return res.status(404).json({ success: false, error: 'User not found for provided email' })
+        }
+        throw err
+      }
+    }
+
+    // Delete from Firebase Authentication
+    await admin.auth().deleteUser(targetUid)
+    
+    // Delete from Firestore
+    await db.collection('users').doc(targetUid).delete()
+
+    res.json({ 
+      success: true, 
+      uid: targetUid, 
+      message: 'User deleted successfully (GHL)',
+      deletedBy: 'GHL'
+    })
+  } catch (error) {
+    console.error('Error deleting user (GHL):', error)
+    res.status(500).json({ success: false, error: error?.message || 'Internal server error' })
+  }
+})
+
 // GHL: Send notification to specific users by email (API key auth)
 app.post('/api/ghl/send-notification', authenticateApiKey, async (req, res) => {
   try {
