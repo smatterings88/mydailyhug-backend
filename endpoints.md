@@ -558,6 +558,73 @@ Response
 
 ---
 
+### Delete User (Admin Only)
+
+- Method/Path: `POST /api/delete-user`
+- Authentication: Bearer token (admin required)
+- Description: Permanently delete a user from Firebase Authentication and Firestore
+- Parameters:
+  - `uid` (string, optional): Firebase user ID
+  - `email` (string, optional): User email address
+  - Note: Either `uid` or `email` is required
+
+Example
+```bash
+curl -X POST https://mydailyhugbackend.vercel.app/api/delete-user \
+  -H "Authorization: Bearer <FIREBASE_ID_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@example.com"}'
+```
+
+Response
+```json
+{
+  "success": true,
+  "uid": "<firebase-uid>",
+  "message": "User deleted successfully",
+  "deletedBy": "Admin Name"
+}
+```
+
+---
+
+### Delete User (GHL)
+
+- Method/Path: `POST /api/ghl/delete-user`
+- Authentication: X-API-Key header
+- Description: Permanently delete a user from Firebase Authentication and Firestore (GHL integration)
+- Parameters:
+  - `uid` (string, optional): Firebase user ID
+  - `email` (string, optional): User email address
+  - Note: Either `uid` or `email` is required
+  - HTTP/1.x Compatible: Supports query parameters
+
+Example (JSON Body)
+```bash
+curl -X POST https://mydailyhugbackend.vercel.app/api/ghl/delete-user \
+  -H "X-API-Key: <GHL_API_KEY>" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@example.com"}'
+```
+
+Example (HTTP/1.x Query Parameters)
+```bash
+curl --http1.1 -X POST "https://mydailyhugbackend.vercel.app/api/ghl/delete-user?email=user@example.com" \
+  -H "X-API-Key: <GHL_API_KEY>"
+```
+
+Response
+```json
+{
+  "success": true,
+  "uid": "<firebase-uid>",
+  "message": "User deleted successfully (GHL)",
+  "deletedBy": "GHL"
+}
+```
+
+---
+
 ## GHL: Send Notification to Specific Users by Email
 
 - Method/Path: `POST /api/ghl/send-notification`

@@ -303,9 +303,69 @@ curl -X POST https://your-backend-url.vercel.app/api/ghl/make-double-hugger \
 
 ---
 
+### 7. Delete User
+
+**Endpoint:** `POST /api/ghl/delete-user`
+
+Permanently deletes a user from Firebase Authentication and Firestore. This action cannot be undone.
+
+#### Parameters
+- `email` (string, optional): User's email address
+- `uid` (string, optional): Firebase user ID
+- Note: Either `email` or `uid` is required
+
+#### HTTP/1.x Compatible Examples
+
+**Query Parameters (Recommended for HTTP/1.x)**
+```bash
+curl --http1.1 -X POST "https://mydailyhugbackend.vercel.app/api/ghl/delete-user?email=user@example.com" \
+  -H "X-API-Key: YOUR_API_KEY"
+```
+
+**JSON Body**
+```bash
+curl -X POST https://mydailyhugbackend.vercel.app/api/ghl/delete-user \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "user@example.com"
+  }'
+```
+
+**URL-encoded Body (HTTP/1.x Safe)**
+```bash
+curl --http1.1 -X POST "https://mydailyhugbackend.vercel.app/api/ghl/delete-user" \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  --data-urlencode "email=user@example.com"
+```
+
+#### Success Response
+```json
+{
+  "success": true,
+  "uid": "firebase-user-id",
+  "message": "User deleted successfully (GHL)",
+  "deletedBy": "GHL"
+}
+```
+
+#### Error Responses
+- **400 Bad Request**: Missing required parameters
+- **404 Not Found**: User not found for provided email/uid
+- **500 Internal Server Error**: Server error during deletion
+
+#### Important Notes
+- ⚠️ **This action is permanent and cannot be undone**
+- The user will be removed from Firebase Authentication and Firestore
+- Any associated data (messages, tokens) will also be deleted
+- Use with caution in production environments
+
+---
+
 ## Push Notifications
 
-### 7. Send Notification to Specific Users
+### 8. Send Notification to Specific Users
 
 **Endpoint:** `POST /api/ghl/send-notification`
 
