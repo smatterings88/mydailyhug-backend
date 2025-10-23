@@ -739,6 +739,62 @@ Response (User Doesn't Exist)
 
 ---
 
+### Get User Profile (Admin Only)
+
+- Method/Path: `POST /api/get-user-profile`
+- Authentication: Bearer token (admin required)
+- Description: Get complete user profile data for admin viewing
+- Parameters:
+  - `userId` (string, required): The UID of the user whose profile to retrieve
+
+Example
+```bash
+curl -X POST https://mydailyhugbackend.vercel.app/api/get-user-profile \
+  -H "Authorization: Bearer <FIREBASE_ID_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{"userId": "user123"}'
+```
+
+Response
+```json
+{
+  "success": true,
+  "profile": {
+    "uid": "user123",
+    "email": "user@example.com",
+    "firstName": "John",
+    "lastName": "Doe",
+    "displayName": "John Doe",
+    "userType": "user",
+    "accountType": "Trial",
+    "accountStatus": "Active",
+    "createdAt": "2024-01-01T00:00:00Z",
+    "updatedAt": "2024-01-01T00:00:00Z",
+    "fcmToken": "token123",
+    "is_triple_hugger": "No",
+    "hasFirebaseAuth": true,
+    "birthday": "1990-01-01",
+    "wakeTime": "7:00 AM",
+    "sleepTime": "10:00 PM",
+    "hugVibe": "gentle",
+    "onboardingCompleted": true,
+    "onboardingCompletedAt": "2024-01-01T00:00:00Z",
+    "creationEndpoint": "ghl_create_trial_user",
+    "createdBy": "GHL",
+    "tempPassword": "tempPass123",
+    "passwordGeneratedAt": "2024-01-01T00:00:00Z"
+  }
+}
+```
+
+Error Responses
+- **400 Bad Request**: User ID is required
+- **403 Forbidden**: Admin access required
+- **404 Not Found**: User not found
+- **500 Internal Server Error**: Server error
+
+---
+
 ## GHL: Send Notification to Specific Users by Email
 
 - Method/Path: `POST /api/ghl/send-notification`
