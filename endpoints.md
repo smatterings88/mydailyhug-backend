@@ -625,6 +625,120 @@ Response
 
 ---
 
+## User Cleanup Utility Endpoints
+
+### Scan Orphaned Users (Admin Only)
+
+- Method/Path: `POST /api/scan-orphaned-users`
+- Authentication: Bearer token (admin required)
+- Description: Scans Firestore for users that don't have corresponding Firebase Authentication accounts
+- Parameters: None
+
+Example
+```bash
+curl -X POST https://mydailyhugbackend.vercel.app/api/scan-orphaned-users \
+  -H "Authorization: Bearer <FIREBASE_ID_TOKEN>" \
+  -H "Content-Type: application/json"
+```
+
+Response
+```json
+{
+  "success": true,
+  "orphanedUsers": [
+    {
+      "uid": "user123",
+      "email": "user@example.com",
+      "firstName": "John",
+      "lastName": "Doe",
+      "userType": "user",
+      "createdAt": "2024-01-01T00:00:00Z"
+    }
+  ],
+  "summary": {
+    "totalFirestoreUsers": 100,
+    "orphanedUsers": 5,
+    "validUsers": 95
+  }
+}
+```
+
+---
+
+### Cleanup Orphaned Users (Admin Only)
+
+- Method/Path: `POST /api/cleanup-orphaned-users`
+- Authentication: Bearer token (admin required)
+- Description: Delete orphaned user records from Firestore
+- Parameters:
+  - `userIds` (array, required): Array of user IDs to clean up
+
+Example
+```bash
+curl -X POST https://mydailyhugbackend.vercel.app/api/cleanup-orphaned-users \
+  -H "Authorization: Bearer <FIREBASE_ID_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{"userIds": ["user123", "user456"]}'
+```
+
+Response
+```json
+{
+  "success": true,
+  "message": "Successfully cleaned up 2 orphaned users",
+  "details": {
+    "totalUsers": 2,
+    "orphanedUsers": 2,
+    "cleanedUsers": 2,
+    "failedUsers": 0,
+    "errors": []
+  }
+}
+```
+
+---
+
+### Validate User Auth (Admin Only)
+
+- Method/Path: `POST /api/validate-user-auth`
+- Authentication: Bearer token (admin required)
+- Description: Validate if a specific user has a Firebase Authentication account
+- Parameters:
+  - `uid` (string, required): User ID to validate
+
+Example
+```bash
+curl -X POST https://mydailyhugbackend.vercel.app/api/validate-user-auth \
+  -H "Authorization: Bearer <FIREBASE_ID_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{"uid": "user123"}'
+```
+
+Response (User Exists)
+```json
+{
+  "success": true,
+  "exists": true,
+  "user": {
+    "uid": "user123",
+    "email": "user@example.com",
+    "displayName": "John Doe",
+    "disabled": false,
+    "emailVerified": true
+  }
+}
+```
+
+Response (User Doesn't Exist)
+```json
+{
+  "success": true,
+  "exists": false
+}
+```
+
+---
+
 ## GHL: Send Notification to Specific Users by Email
 
 - Method/Path: `POST /api/ghl/send-notification`
