@@ -1791,6 +1791,101 @@ app.post('/api/validate-user-auth', authenticateAdmin, async (req, res) => {
   }
 })
 
+// Get user profile (admin only)
+app.post('/api/get-user-profile', authenticateAdmin, async (req, res) => {
+  try {
+    const { userId } = req.body || {}
+    
+    if (!userId || typeof userId !== 'string') {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'User ID is required' 
+      })
+    }
+
+    console.log(`Getting profile for user: ${userId}`)
+
+    // Get user profile from Firestore
+    const profileDoc = await db.collection('users').doc(userId).get()
+    
+    if (!profileDoc.exists) {
+      console.log(`User not found in Firestore: ${userId}`)
+      return res.status(404).json({ 
+        success: false, 
+        error: 'User not found' 
+      })
+    }
+
+    const profileData = profileDoc.data()
+    
+    // Check if user exists in Firebase Auth
+    let hasFirebaseAuth = true
+    try {
+      await admin.auth().getUser(userId)
+    } catch (error) {
+      if (error.code === 'auth/user-not-found') {
+        hasFirebaseAuth = false
+        console.log(`User ${userId} not found in Firebase Auth`)
+      } else {
+        console.error(`Error checking Firebase Auth for user ${userId}:`, error)
+        throw error
+      }
+    }
+
+    // Format timestamps for response
+    const formatTimestamp = (timestamp) => {
+      if (!timestamp) return null
+      if (timestamp.toDate && typeof timestamp.toDate === 'function') {
+        return timestamp.toDate().toISOString()
+      }
+      if (timestamp instanceof Date) {
+        return timestamp.toISOString()
+      }
+      return timestamp
+    }
+
+    // Build complete profile with all fields
+    const completeProfile = {
+      uid: userId,
+      email: profileData.email,
+      firstName: profileData.firstName,
+      lastName: profileData.lastName,
+      displayName: profileData.displayName,
+      userType: profileData.userType,
+      accountType: profileData.accountType,
+      accountStatus: profileData.accountStatus,
+      createdAt: formatTimestamp(profileData.createdAt),
+      updatedAt: formatTimestamp(profileData.updatedAt),
+      fcmToken: profileData.fcmToken,
+      is_triple_hugger: profileData.is_triple_hugger,
+      hasFirebaseAuth,
+      birthday: profileData.birthday,
+      wakeTime: profileData.wakeTime,
+      sleepTime: profileData.sleepTime,
+      hugVibe: profileData.hugVibe,
+      onboardingCompleted: profileData.onboardingCompleted,
+      onboardingCompletedAt: formatTimestamp(profileData.onboardingCompletedAt),
+      creationEndpoint: profileData.creationEndpoint,
+      createdBy: profileData.createdBy,
+      tempPassword: profileData.tempPassword,
+      passwordGeneratedAt: formatTimestamp(profileData.passwordGeneratedAt)
+    }
+
+    console.log(`Successfully retrieved profile for user: ${userId}`)
+
+    res.json({
+      success: true,
+      profile: completeProfile
+    })
+  } catch (error) {
+    console.error('Error getting user profile:', error)
+    res.status(500).json({
+      success: false,
+      error: error?.message || 'Internal server error'
+    })
+  }
+})
+
 // GHL: Send notification to specific users by email (API key auth)
 app.post('/api/ghl/send-notification', authenticateApiKey, async (req, res) => {
   try {
