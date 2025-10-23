@@ -1603,6 +1603,194 @@ app.post('/api/ghl/delete-user', authenticateApiKey, async (req, res) => {
   }
 })
 
+// Scan for orphaned users (admin only)
+app.post('/api/scan-orphaned-users', authenticateAdmin, async (req, res) => {
+  try {
+    console.log('Scanning for orphaned users...')
+    
+    // Get all users from Firestore
+    const usersSnapshot = await db.collection('users').get()
+    const firestoreUsers = usersSnapshot.docs.map(doc => ({
+      uid: doc.id,
+      ...doc.data()
+    }))
+
+    console.log(`Found ${firestoreUsers.length} users in Firestore`)
+
+    // Check which users don't exist in Firebase Auth
+    const orphanedUsers = []
+    
+    for (const user of firestoreUsers) {
+      try {
+        await admin.auth().getUser(user.uid)
+        // User exists in Firebase Auth
+      } catch (error) {
+        if (error.code === 'auth/user-not-found') {
+          // User doesn't exist in Firebase Auth
+          orphanedUsers.push({
+            uid: user.uid,
+            email: user.email,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            userType: user.userType,
+            createdAt: user.createdAt?.toDate?.()?.toISOString() || user.createdAt
+          })
+        } else {
+          console.error(`Error checking user ${user.uid}:`, error)
+        }
+      }
+    }
+
+    console.log(`Found ${orphanedUsers.length} orphaned users`)
+
+    res.json({
+      success: true,
+      orphanedUsers,
+      summary: {
+        totalFirestoreUsers: firestoreUsers.length,
+        orphanedUsers: orphanedUsers.length,
+        validUsers: firestoreUsers.length - orphanedUsers.length
+      }
+    })
+  } catch (error) {
+    console.error('Error scanning orphaned users:', error)
+    res.status(500).json({
+      success: false,
+      error: error?.message || 'Internal server error'
+    })
+  }
+})
+
+// Cleanup orphaned users (admin only)
+app.post('/api/cleanup-orphaned-users', authenticateAdmin, async (req, res) => {
+  try {
+    const { userIds } = req.body || {}
+    
+    if (!userIds || !Array.isArray(userIds) || userIds.length === 0) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'userIds array is required and must not be empty' 
+      })
+    }
+
+    console.log(`Starting cleanup of ${userIds.length} users...`)
+    
+    const results = {
+      totalUsers: userIds.length,
+      orphanedUsers: 0,
+      cleanedUsers: 0,
+      failedUsers: 0,
+      errors: []
+    }
+
+    for (const userId of userIds) {
+      try {
+        // Verify user doesn't exist in Firebase Auth
+        try {
+          await admin.auth().getUser(userId)
+          // User exists in Firebase Auth, skip cleanup
+          results.errors.push(`User ${userId} exists in Firebase Auth, skipping cleanup`)
+          continue
+        } catch (error) {
+          if (error.code !== 'auth/user-not-found') {
+            throw error
+          }
+          // User doesn't exist in Firebase Auth, proceed with cleanup
+        }
+
+        // Delete user document and subcollections
+        const batch = db.batch()
+        
+        // Delete user document
+        batch.delete(db.collection('users').doc(userId))
+        
+        // Delete subcollections (conversations, memories, user_messages, etc.)
+        try {
+          const conversationsSnapshot = await db.collection('users').doc(userId).collection('conversations').get()
+          conversationsSnapshot.docs.forEach(doc => batch.delete(doc.ref))
+          
+          const memoriesSnapshot = await db.collection('users').doc(userId).collection('memories').get()
+          memoriesSnapshot.docs.forEach(doc => batch.delete(doc.ref))
+          
+          // Delete user_messages where uid matches
+          const userMessagesSnapshot = await db.collection('user_messages').where('uid', '==', userId).get()
+          userMessagesSnapshot.docs.forEach(doc => batch.delete(doc.ref))
+          
+        } catch (subcollectionError) {
+          console.warn(`Error accessing subcollections for user ${userId}:`, subcollectionError)
+          // Continue with cleanup even if subcollections fail
+        }
+        
+        await batch.commit()
+        
+        results.cleanedUsers++
+        results.orphanedUsers++
+        console.log(`Successfully cleaned up user ${userId}`)
+        
+      } catch (error) {
+        console.error(`Error cleaning up user ${userId}:`, error)
+        results.failedUsers++
+        results.errors.push(`Failed to cleanup user ${userId}: ${error?.message || 'Unknown error'}`)
+      }
+    }
+
+    console.log(`Cleanup completed: ${results.cleanedUsers} cleaned, ${results.failedUsers} failed`)
+
+    res.json({
+      success: true,
+      message: `Successfully cleaned up ${results.cleanedUsers} orphaned users`,
+      details: results
+    })
+  } catch (error) {
+    console.error('Error cleaning up orphaned users:', error)
+    res.status(500).json({
+      success: false,
+      error: error?.message || 'Internal server error'
+    })
+  }
+})
+
+// Validate user auth (admin only)
+app.post('/api/validate-user-auth', authenticateAdmin, async (req, res) => {
+  try {
+    const { uid } = req.body || {}
+    
+    if (!uid || typeof uid !== 'string') {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'uid is required and must be a string' 
+      })
+    }
+    
+    try {
+      const userRecord = await admin.auth().getUser(uid)
+      res.json({ 
+        success: true, 
+        exists: true,
+        user: {
+          uid: userRecord.uid,
+          email: userRecord.email,
+          displayName: userRecord.displayName,
+          disabled: userRecord.disabled,
+          emailVerified: userRecord.emailVerified
+        }
+      })
+    } catch (error) {
+      if (error.code === 'auth/user-not-found') {
+        res.json({ success: true, exists: false })
+      } else {
+        throw error
+      }
+    }
+  } catch (error) {
+    console.error('Error validating user auth:', error)
+    res.status(500).json({
+      success: false,
+      error: error?.message || 'Internal server error'
+    })
+  }
+})
+
 // GHL: Send notification to specific users by email (API key auth)
 app.post('/api/ghl/send-notification', authenticateApiKey, async (req, res) => {
   try {
