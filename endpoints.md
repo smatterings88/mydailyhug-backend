@@ -218,10 +218,11 @@ curl -X POST https://mydailyhugbackend.vercel.app/api/create-user \
 ## Admin: Remove Password Change Requirement
 
 - Method/Path: `POST /api/remove-password-change-requirement`
-- Auth: None (note: current implementation does not authenticate; lock down if needed)
+- Auth: Bearer admin token
 - Description: Clears the `mustChangePassword` custom claim for the given `uid`.
 
 Headers
+- `Authorization: Bearer <admin-id-token>`
 - `Content-Type: application/json`
 
 Request body
@@ -232,8 +233,64 @@ Request body
 Example
 ```bash
 curl -X POST https://mydailyhugbackend.vercel.app/api/remove-password-change-requirement \
+  -H "Authorization: Bearer <admin-id-token>" \
   -H "Content-Type: application/json" \
   -d '{"uid":"<firebase-uid>"}'
+```
+
+Response
+```json
+{
+  "success": true,
+  "uid": "<firebase-uid>",
+  "message": "Password change requirement removed"
+}
+```
+
+---
+
+## Admin: Force Password Reset
+
+- Method/Path: `POST /api/force-password-reset`
+- Auth: Bearer admin token
+- Description: Sets a custom claim `mustChangePassword: true` and revokes refresh tokens so the user must change their password on next sign-in.
+
+Headers
+- `Authorization: Bearer <admin-id-token>`
+- `Content-Type: application/json`
+
+Request body
+```json
+{ "uid": "<firebase-uid>" }
+```
+or
+```json
+{ "email": "user@example.com" }
+```
+
+Example (by uid)
+```bash
+curl -X POST https://mydailyhugbackend.vercel.app/api/force-password-reset \
+  -H "Authorization: Bearer <admin-id-token>" \
+  -H "Content-Type: application/json" \
+  -d '{"uid":"<firebase-uid>"}'
+```
+
+Example (by email)
+```bash
+curl -X POST https://mydailyhugbackend.vercel.app/api/force-password-reset \
+  -H "Authorization: Bearer <admin-id-token>" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@example.com"}'
+```
+
+Response
+```json
+{
+  "success": true,
+  "uid": "<firebase-uid>",
+  "message": "User will be required to change password on next sign-in"
+}
 ```
 
 ---

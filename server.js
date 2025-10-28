@@ -1886,6 +1886,127 @@ app.post('/api/get-user-profile', authenticateAdmin, async (req, res) => {
   }
 })
 
+// Admin-only: Force password reset by setting custom claim mustChangePassword=true
+app.post('/api/force-password-reset', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization || ''
+    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null
+    if (!token) {
+      return res.status(401).json({ success: false, error: 'Missing Authorization token' })
+    }
+
+    let decoded
+    try {
+      decoded = await admin.auth().verifyIdToken(token)
+    } catch (e) {
+      return res.status(401).json({ success: false, error: 'Invalid or expired token' })
+    }
+
+    const allowlist = new Set(['mgzobel@icloud.com', 'kenergizer@mac.com', 'katlinzobel@icloud.com'])
+    let isAdmin = false
+    try {
+      const requesterDoc = await db.collection('users').doc(decoded.uid).get()
+      const requesterData = requesterDoc.data() || {}
+      isAdmin = requesterData.userType === 'admin' || requesterData.userType === 'super_admin'
+    } catch (_) {}
+    const requesterEmail = decoded.email || ''
+    if (!isAdmin && !allowlist.has(requesterEmail)) {
+      return res.status(403).json({ success: false, error: 'Admin access required' })
+    }
+
+    let { uid, email } = req.body || {}
+    if ((!uid || typeof uid !== 'string') && (!email || typeof email !== 'string')) {
+      return res.status(400).json({ success: false, error: 'uid or email is required' })
+    }
+
+    if (!uid && email) {
+      try {
+        const userRecord = await admin.auth().getUserByEmail(email)
+        uid = userRecord.uid
+      } catch (err) {
+        if (err && err.code === 'auth/user-not-found') {
+          return res.status(404).json({ success: false, error: 'User not found' })
+        }
+        throw err
+      }
+    }
+
+    try {
+      const userRecord = await admin.auth().getUser(uid)
+      const existingClaims = userRecord.customClaims || {}
+      const newClaims = { ...existingClaims, mustChangePassword: true }
+      await admin.auth().setCustomUserClaims(uid, newClaims)
+      await admin.auth().revokeRefreshTokens(uid)
+      console.log(JSON.stringify({ level: 'info', action: 'force-password-reset', requesterUid: decoded.uid, requesterEmail, targetUid: uid, result: 'success' }))
+      return res.json({ success: true, uid, message: 'User will be required to change password on next sign-in' })
+    } catch (err) {
+      if (err && (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-uid')) {
+        return res.status(404).json({ success: false, error: 'User not found' })
+      }
+      console.error('Error forcing password reset:', err)
+      return res.status(500).json({ success: false, error: err?.message || 'Internal server error' })
+    }
+  } catch (error) {
+    console.error('Unhandled error in force-password-reset:', error)
+    res.status(500).json({ success: false, error: error?.message || 'Internal server error' })
+  }
+})
+
+// Admin-only: Remove password change requirement by unsetting mustChangePassword custom claim
+app.post('/api/remove-password-change-requirement', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization || ''
+    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null
+    if (!token) {
+      return res.status(401).json({ success: false, error: 'Missing Authorization token' })
+    }
+
+    let decoded
+    try {
+      decoded = await admin.auth().verifyIdToken(token)
+    } catch (e) {
+      return res.status(401).json({ success: false, error: 'Invalid or expired token' })
+    }
+
+    const allowlist = new Set(['mgzobel@icloud.com', 'kenergizer@mac.com', 'katlinzobel@icloud.com'])
+    let isAdmin = false
+    try {
+      const requesterDoc = await db.collection('users').doc(decoded.uid).get()
+      const requesterData = requesterDoc.data() || {}
+      isAdmin = requesterData.userType === 'admin' || requesterData.userType === 'super_admin'
+    } catch (_) {}
+    const requesterEmail = decoded.email || ''
+    if (!isAdmin && !allowlist.has(requesterEmail)) {
+      return res.status(403).json({ success: false, error: 'Admin access required' })
+    }
+
+    const { uid } = req.body || {}
+    if (!uid || typeof uid !== 'string') {
+      return res.status(400).json({ success: false, error: 'uid is required and must be a string' })
+    }
+
+    try {
+      const userRecord = await admin.auth().getUser(uid)
+      const existingClaims = userRecord.customClaims || {}
+      // Remove mustChangePassword while preserving other claims
+      const { mustChangePassword, ...restClaims } = existingClaims
+      await admin.auth().setCustomUserClaims(uid, restClaims)
+      await admin.auth().revokeRefreshTokens(uid)
+      console.log(JSON.stringify({ level: 'info', action: 'remove-password-change-requirement', requesterUid: decoded.uid, requesterEmail, targetUid: uid, result: 'success' }))
+      return res.json({ success: true, uid, message: 'Password change requirement removed' })
+    } catch (err) {
+      if (err && (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-uid')) {
+        return res.status(404).json({ success: false, error: 'User not found' })
+      }
+      console.error('Error removing password change requirement:', err)
+      return res.status(500).json({ success: false, error: err?.message || 'Internal server error' })
+    }
+  } catch (error) {
+    console.error('Unhandled error in remove-password-change-requirement:', error)
+    res.status(500).json({ success: false, error: error?.message || 'Internal server error' })
+  }
+})
+
 // GHL: Send notification to specific users by email (API key auth)
 app.post('/api/ghl/send-notification', authenticateApiKey, async (req, res) => {
   try {
