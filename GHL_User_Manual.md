@@ -92,6 +92,52 @@ curl -X POST https://your-backend-url.vercel.app/api/ghl/create-user \
 
 ---
 
+### 1a. Create Dollar Hugger (Premium with Dollar Hugger flag)
+
+**Endpoint:** `POST /api/ghl/create-dollar-hugger`
+
+Creates a new Premium user and marks them as a Dollar Hugger by setting `isDollarHugger: "Yes"`. The user receives a temporary password and must change it on first login.
+
+#### Request Body
+```json
+{
+  "email": "user@example.com",
+  "firstName": "Jane",
+  "lastName": "Smith",
+  "tempPassword": "abc123"
+}
+```
+
+#### Example Request
+```bash
+curl -X POST https://mydailyhugbackend.vercel.app/api/ghl/create-dollar-hugger \
+  -H "X-API-Key: your-ghl-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "jane.doe@example.com",
+    "firstName": "Jane",
+    "lastName": "Doe",
+    "tempPassword": "TempPass123!"
+  }'
+```
+
+#### Success Response
+```json
+{
+  "success": true,
+  "uid": "firebase-user-id",
+  "email": "jane.doe@example.com",
+  "firstName": "Jane",
+  "lastName": "Doe",
+  "accountType": "Premium",
+  "userType": "user",
+  "is_triple_hugger": "No",
+  "isDollarHugger": "Yes",
+  "message": "Dollar Hugger created successfully"
+}
+```
+
+---
 ### 2. Create Trial User
 
 **Endpoint:** `POST /api/ghl/create-trial-user`

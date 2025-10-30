@@ -413,6 +413,65 @@ curl -X POST https://mydailyhugbackend.vercel.app/api/ghl/create-trial-user \
 
 ---
 
+## Admin: Create Dollar Hugger
+
+- Method/Path: `POST /api/create-dollar-hugger`
+- Auth: Bearer admin token
+- Description: Creates a regular user marked as a Dollar Hugger by setting `isDollarHugger: "Yes"`. Requires password change on first sign-in and writes profile to Firestore.
+
+Headers
+- `Authorization: Bearer <admin-id-token>`
+- `Content-Type: application/json`
+
+Request body
+```json
+{
+  "email": "user@example.com",
+  "firstName": "Jane",
+  "lastName": "Smith",
+  "tempPassword": "custom"
+}
+```
+
+Example
+```bash
+curl -X POST https://mydailyhugbackend.vercel.app/api/create-dollar-hugger \
+  -H "Authorization: Bearer <admin-id-token>" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@example.com"}'
+```
+
+---
+
+## GHL: Create Dollar Hugger
+
+- Method/Path: `POST /api/ghl/create-dollar-hugger`
+- Auth: `X-API-Key`
+- Description: Creates a user marked as a Dollar Hugger by setting `isDollarHugger: "Yes"` (GHL version with API key auth). Also requires password change on first sign-in and writes profile to Firestore.
+
+Headers
+- `X-API-Key: <GHL_API_KEY>`
+- `Content-Type: application/json`
+
+Request body
+```json
+{
+  "email": "user@example.com",
+  "firstName": "Jane",
+  "lastName": "Smith",
+  "tempPassword": "abc123"
+}
+```
+
+Example
+```bash
+curl -X POST https://mydailyhugbackend.vercel.app/api/ghl/create-dollar-hugger \
+  -H "X-API-Key: <GHL_API_KEY>" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@example.com"}'
+```
+
+---
 ## GHL: Make User Inactive
 
 - Method/Path: `POST /api/ghl/make-inactive`

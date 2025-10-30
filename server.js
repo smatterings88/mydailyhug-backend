@@ -1203,6 +1203,135 @@ app.post('/api/ghl/create-trial-user', authenticateApiKey, async (req, res) => {
   }
 })
 
+// Create Dollar Hugger (admin only)
+app.post('/api/create-dollar-hugger', authenticateAdmin, async (req, res) => {
+  try {
+    console.log('Create dollar hugger (admin) request received:', { body: req.body })
+    const { email, firstName = '', lastName = '', tempPassword } = req.body || {}
+
+    if (!email || typeof email !== 'string') {
+      return res.status(400).json({ success: false, error: 'Valid email is required' })
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ success: false, error: 'Invalid email format' })
+    }
+
+    // Check if user already exists
+    let userRecord
+    try {
+      userRecord = await admin.auth().getUserByEmail(email)
+      return res.status(409).json({ success: false, error: 'User already exists with this email', uid: userRecord.uid })
+    } catch (err) {
+      if (!(err && err.code === 'auth/user-not-found')) {
+        console.error('Error looking up user:', err)
+        throw err
+      }
+    }
+
+    // Create new Auth user with temp password (provided or generated)
+    const generated = tempPassword || Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-4)
+    userRecord = await admin.auth().createUser({ email, password: generated })
+
+    // Enforce password change on first sign-in
+    await admin.auth().setCustomUserClaims(userRecord.uid, { mustChangePassword: true })
+
+    const uid = userRecord.uid
+    const displayName = `${firstName || ''} ${lastName || ''}`.trim() || userRecord.displayName || ''
+
+    const userData = {
+      uid,
+      email,
+      userType: 'user',
+      accountType: 'Admin-Created',
+      creationEndpoint: 'create_dollar_hugger',
+      createdBy: req.adminDisplayName || 'Admin',
+      accountStatus: 'Active',
+      is_triple_hugger: 'No',
+      isDollarHugger: 'Yes',
+      updatedAt: admin.firestore.Timestamp.now(),
+      tempPassword: generated,
+      passwordGeneratedAt: admin.firestore.Timestamp.now()
+    }
+    if (firstName) userData.firstName = firstName
+    if (lastName) userData.lastName = lastName
+    if (displayName) userData.displayName = displayName
+    userData.createdAt = admin.firestore.FieldValue.serverTimestamp()
+
+    await db.collection('users').doc(uid).set(userData, { merge: true })
+
+    return res.json({ success: true, email, uid, tempPassword: generated })
+  } catch (error) {
+    console.error('Error creating dollar hugger (admin):', error)
+    res.status(500).json({ success: false, error: error?.message || 'Failed to create dollar hugger', code: error?.code || undefined })
+  }
+})
+
+// GHL: Create Dollar Hugger (API key auth)
+app.post('/api/ghl/create-dollar-hugger', authenticateApiKey, async (req, res) => {
+  try {
+    console.log('GHL create dollar hugger request received:', { body: req.body })
+    const { email, firstName = '', lastName = '', tempPassword } = normalizeRequestBody(req, ['email', 'firstName', 'lastName', 'tempPassword'])
+
+    if (!email || typeof email !== 'string') {
+      return res.status(400).json({ success: false, error: 'Valid email is required' })
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ success: false, error: 'Invalid email format' })
+    }
+
+    // Check duplicates
+    let userRecord
+    try {
+      userRecord = await admin.auth().getUserByEmail(email)
+      return res.status(409).json({ success: false, error: 'User already exists with this email', uid: userRecord.uid })
+    } catch (err) {
+      if (!(err && err.code === 'auth/user-not-found')) {
+        console.error('Error looking up user:', err)
+        throw err
+      }
+    }
+
+    // Create new user
+    const generated = tempPassword || Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-4)
+    userRecord = await admin.auth().createUser({ email, password: generated })
+
+    // Enforce password change on first sign-in
+    await admin.auth().setCustomUserClaims(userRecord.uid, { mustChangePassword: true })
+
+    // Build Firestore data
+    const uid = userRecord.uid
+    const displayName = `${firstName || ''} ${lastName || ''}`.trim() || userRecord.displayName || ''
+    const userData = {
+      uid,
+      email,
+      userType: 'user',
+      accountType: 'Premium',
+      creationEndpoint: 'ghl_create_dollar_hugger',
+      createdBy: 'GHL',
+      accountStatus: 'Active',
+      is_triple_hugger: 'No',
+      isDollarHugger: 'Yes',
+      updatedAt: admin.firestore.Timestamp.now(),
+      tempPassword: generated,
+      passwordGeneratedAt: admin.firestore.Timestamp.now()
+    }
+    if (firstName) userData.firstName = firstName
+    if (lastName) userData.lastName = lastName
+    if (displayName) userData.displayName = displayName
+    userData.createdAt = admin.firestore.FieldValue.serverTimestamp()
+
+    await db.collection('users').doc(uid).set(userData, { merge: true })
+
+    const response = { success: true, email, uid, tempPassword: generated }
+    return res.json(response)
+  } catch (error) {
+    console.error('Error creating dollar hugger (GHL):', error)
+    res.status(500).json({ success: false, error: error?.message || 'Failed to create dollar hugger', code: error?.code || undefined })
+  }
+})
+
 // Make user inactive (admin only)
 app.post('/api/make-inactive', authenticateAdmin, async (req, res) => {
   try {
