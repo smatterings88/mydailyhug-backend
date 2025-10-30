@@ -1221,7 +1221,31 @@ app.post('/api/create-dollar-hugger', authenticateAdmin, async (req, res) => {
     let userRecord
     try {
       userRecord = await admin.auth().getUserByEmail(email)
-      return res.status(409).json({ success: false, error: 'User already exists with this email', uid: userRecord.uid })
+      // If the user already exists in Auth, update Firestore to mark as Dollar Hugger
+      const uid = userRecord.uid
+      const displayName = `${firstName || ''} ${lastName || ''}`.trim() || userRecord.displayName || ''
+      const userRef = db.collection('users').doc(uid)
+      const existing = await userRef.get()
+      const userData = {
+        uid,
+        email,
+        isDollarHugger: 'Yes',
+        is_triple_hugger: 'No',
+        updatedAt: admin.firestore.Timestamp.now(),
+        creationEndpoint: 'create_dollar_hugger_existing',
+        createdBy: req.adminDisplayName || 'Admin'
+      }
+      if (firstName) userData.firstName = firstName
+      if (lastName) userData.lastName = lastName
+      if (displayName) userData.displayName = displayName
+      if (!existing.exists) {
+        userData.userType = 'user'
+        userData.accountType = 'Admin-Created'
+        userData.accountStatus = 'Active'
+        userData.createdAt = admin.firestore.FieldValue.serverTimestamp()
+      }
+      await userRef.set(userData, { merge: true })
+      return res.json({ success: true, email, uid, updated: true, message: 'User already existed; isDollarHugger set to Yes' })
     } catch (err) {
       if (!(err && err.code === 'auth/user-not-found')) {
         console.error('Error looking up user:', err)
@@ -1285,7 +1309,31 @@ app.post('/api/ghl/create-dollar-hugger', authenticateApiKey, async (req, res) =
     let userRecord
     try {
       userRecord = await admin.auth().getUserByEmail(email)
-      return res.status(409).json({ success: false, error: 'User already exists with this email', uid: userRecord.uid })
+      // If the user already exists, update Firestore to mark as Dollar Hugger
+      const uid = userRecord.uid
+      const displayName = `${firstName || ''} ${lastName || ''}`.trim() || userRecord.displayName || ''
+      const userRef = db.collection('users').doc(uid)
+      const existing = await userRef.get()
+      const userData = {
+        uid,
+        email,
+        isDollarHugger: 'Yes',
+        is_triple_hugger: 'No',
+        updatedAt: admin.firestore.Timestamp.now(),
+        creationEndpoint: 'ghl_create_dollar_hugger_existing',
+        createdBy: 'GHL'
+      }
+      if (firstName) userData.firstName = firstName
+      if (lastName) userData.lastName = lastName
+      if (displayName) userData.displayName = displayName
+      if (!existing.exists) {
+        userData.userType = 'user'
+        userData.accountType = 'Premium'
+        userData.accountStatus = 'Active'
+        userData.createdAt = admin.firestore.FieldValue.serverTimestamp()
+      }
+      await userRef.set(userData, { merge: true })
+      return res.json({ success: true, email, uid, updated: true, message: 'User already existed; isDollarHugger set to Yes (GHL)' })
     } catch (err) {
       if (!(err && err.code === 'auth/user-not-found')) {
         console.error('Error looking up user:', err)
