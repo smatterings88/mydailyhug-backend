@@ -79,6 +79,7 @@ curl -X POST https://your-backend-url.vercel.app/api/ghl/create-user \
   "accountType": "Premium",
   "userType": "user",
   "is_triple_hugger": "No",
+  "isDollarHugger": "No",
   "message": "Premium user created successfully"
 }
 ```
@@ -130,6 +131,7 @@ curl -X POST https://your-backend-url.vercel.app/api/ghl/create-trial-user \
   "accountType": "Trial",
   "userType": "user",
   "is_triple_hugger": "No",
+  "isDollarHugger": "No",
   "message": "Trial user created successfully"
 }
 ```

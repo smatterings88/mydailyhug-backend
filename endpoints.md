@@ -1012,6 +1012,17 @@ The GHL User Manual includes:
 
 ---
 
+## User Profile Defaults on Creation
+
+When users are created by any endpoint (`/api/grant-admin`, `/api/create-user`, `/api/ghl/create-user`, `/api/ghl/create-trial-user`), the backend writes default flags in the Firestore profile:
+
+- `is_triple_hugger: "No"`
+- `isDollarHugger: "No"`
+
+These can be updated later via the respective management endpoints.
+
+---
+
 ## Security Notes
 
 - Admin endpoints require a valid Firebase ID token from a user whose Firestore document has `userType: "admin"`.

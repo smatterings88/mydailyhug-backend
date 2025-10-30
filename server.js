@@ -823,6 +823,7 @@ app.post('/api/grant-admin', authenticateAdmin, async (req, res) => {
       createdBy: req.adminDisplayName || 'Admin',
       accountStatus: 'Active',
       is_triple_hugger: 'No',
+      isDollarHugger: 'No',
       updatedAt: admin.firestore.Timestamp.now()
     }
     
@@ -983,6 +984,7 @@ app.post('/api/create-user', authenticateAdmin, async (req, res) => {
       createdBy: req.adminDisplayName || 'Admin',
       accountStatus: 'Active',
       is_triple_hugger: 'No',
+      isDollarHugger: 'No',
       updatedAt: admin.firestore.Timestamp.now()
     }
     
@@ -1105,6 +1107,7 @@ app.post('/api/ghl/create-user', authenticateApiKey, async (req, res) => {
       createdBy: 'GHL',
       accountStatus: 'Active',
       is_triple_hugger: 'No',
+      isDollarHugger: 'No',
       updatedAt: admin.firestore.Timestamp.now(),
       tempPassword: generated,
       passwordGeneratedAt: admin.firestore.Timestamp.now()
@@ -1178,6 +1181,7 @@ app.post('/api/ghl/create-trial-user', authenticateApiKey, async (req, res) => {
       createdBy: 'GHL',
       accountStatus: 'Active',
       is_triple_hugger: 'No',
+      isDollarHugger: 'No',
       updatedAt: admin.firestore.Timestamp.now(),
       tempPassword: generated,
       passwordGeneratedAt: admin.firestore.Timestamp.now()

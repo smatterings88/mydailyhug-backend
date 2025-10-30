@@ -295,6 +295,7 @@ The backend writes these fields when creating users:
   "createdBy": "GHL | <admin full name>",
   "accountStatus": "Active",
   "is_triple_hugger": "Yes | No",
+  "isDollarHugger": "Yes | No",
   "firstName": "Jane",                // when provided
   "lastName": "Smith",                // when provided
   "displayName": "Jane Smith",        // when derivable
